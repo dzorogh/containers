@@ -53,6 +53,23 @@ export type RelativeDeadlineKey =
   | "later"
   | "no-deadline";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
 const RELATIVE_LABELS: Record<RelativeDeadlineKey, string> = {
   overdue: "Overdue",
   today: "Today",
@@ -68,6 +85,16 @@ const startOfDay = (date: Date): Date => {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   return d;
+};
+
+const isoWeekYearParts = (date: Date): { week: number; weekYear: number } => {
+  const d = startOfDay(date);
+  // ISO week date algorithm
+  const dayNum = d.getDay() || 7;
+  d.setDate(d.getDate() + 4 - dayNum);
+  const yearStart = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d.getTime() - yearStart.getTime()) / DAY_MS + 1) / 7);
+  return { week, weekYear: d.getFullYear() };
 };
 
 const addDays = (date: Date, days: number): Date => {
@@ -161,9 +188,29 @@ export const resolveBucket = (
     return resolveRelativeDeadlineBucket(task.deadlineAt, now);
   }
 
-  // Temporary stubs so file typechecks until Task 3 fills them in.
   if (groupBy === "deadlineMonth") {
-    return { key: "no-deadline", label: "No deadline" };
+    if (!task.deadlineAt) {
+      return { key: "no-deadline", label: "No deadline" };
+    }
+    const d = new Date(task.deadlineAt);
+    if (Number.isNaN(d.getTime())) {
+      return { key: "no-deadline", label: "No deadline" };
+    }
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return { key, label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}` };
   }
+
+  if (groupBy === "deadlineWeek") {
+    if (!task.deadlineAt) {
+      return { key: "no-deadline", label: "No deadline" };
+    }
+    const d = new Date(task.deadlineAt);
+    if (Number.isNaN(d.getTime())) {
+      return { key: "no-deadline", label: "No deadline" };
+    }
+    const { week, weekYear } = isoWeekYearParts(d);
+    return { key: `week-${weekYear}-${week}`, label: `Week ${week}` };
+  }
+
   return { key: "no-deadline", label: "No deadline" };
 };

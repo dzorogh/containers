@@ -69,3 +69,23 @@ describe("resolveBucket relativeDeadline", () => {
     });
   });
 });
+
+describe("resolveBucket deadlineMonth / deadlineWeek", () => {
+  it("formats month and no deadline", () => {
+    expect(resolveBucket(baseTask({ deadlineAt: "2026-04-19T12:00:00.000Z" }), "deadlineMonth", WED)).toEqual({
+      key: "2026-04",
+      label: "April 2026",
+    });
+    expect(resolveBucket(baseTask({ deadlineAt: "" }), "deadlineMonth", WED)).toEqual({
+      key: "no-deadline",
+      label: "No deadline",
+    });
+  });
+
+  it("formats ISO week and no deadline", () => {
+    const week = resolveBucket(baseTask({ deadlineAt: atLocalDay(WED, 4) }), "deadlineWeek", WED);
+    expect(week.label.startsWith("Week ")).toBe(true);
+    expect(week.key.startsWith("week-")).toBe(true);
+    expect(resolveBucket(baseTask({ deadlineAt: "" }), "deadlineWeek", WED).key).toBe("no-deadline");
+  });
+});

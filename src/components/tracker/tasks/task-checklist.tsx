@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { ChevronDown, ChevronRight, GripVertical, Plus } from "lucide-react";
 import type { ChecklistItem } from "@/components/home/tasks-today-demo-data";
 import {
@@ -9,10 +9,12 @@ import {
   findChecklistItem,
   indentChecklistItem,
   insertChecklistSiblingAfter,
+  moveChecklistItem,
   outdentChecklistItem,
   removeChecklistItem,
   renameChecklistItem,
   toggleChecklistItem,
+  type ChecklistDropPosition,
 } from "@/components/tracker/tasks/checklist-tree";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -32,8 +34,40 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    id: string;
+    position: ChecklistDropPosition;
+  } | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const skipBlurCommitRef = useRef(false);
+
+  const onDragOverItem = (event: DragEvent, id: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!draggingId || draggingId === id) {
+      return;
+    }
+    const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const y = event.clientY - bounds.top;
+    const ratio = y / bounds.height;
+    const position: ChecklistDropPosition =
+      ratio < 0.25 ? "before" : ratio > 0.75 ? "after" : "into";
+    setDropTarget({ id, position });
+  };
+
+  const onDropItem = (event: DragEvent, id: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!draggingId || !dropTarget || dropTarget.id !== id) {
+      setDraggingId(null);
+      setDropTarget(null);
+      return;
+    }
+    onChange(moveChecklistItem(items, draggingId, id, dropTarget.position));
+    setDraggingId(null);
+    setDropTarget(null);
+  };
 
   useEffect(() => {
     if (!focusId) {
@@ -164,8 +198,25 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
       return (
         <div key={item.id}>
           <div
-            className="group flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-muted/60"
+            className={cn(
+              "group flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-muted/60",
+              draggingId === item.id && "opacity-50",
+              dropTarget?.id === item.id &&
+                dropTarget.position === "into" &&
+                "ring-2 ring-primary/40",
+              dropTarget?.id === item.id &&
+                dropTarget.position === "before" &&
+                "border-t-2 border-primary",
+              dropTarget?.id === item.id &&
+                dropTarget.position === "after" &&
+                "border-b-2 border-primary",
+            )}
             style={{ paddingLeft: depth * 16 }}
+            onDragOver={(event) => onDragOverItem(event, item.id)}
+            onDrop={(event) => onDropItem(event, item.id)}
+            onDragLeave={() => {
+              setDropTarget((current) => (current?.id === item.id ? null : current));
+            }}
           >
             <button
               type="button"
@@ -223,9 +274,21 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
               <Plus className="size-3.5" />
             </Button>
             <span
+              draggable
+              onDragStart={(event) => {
+                event.stopPropagation();
+                event.dataTransfer.setData("text/plain", item.id);
+                event.dataTransfer.effectAllowed = "move";
+                setDraggingId(item.id);
+              }}
+              onDragEnd={() => {
+                setDraggingId(null);
+                setDropTarget(null);
+              }}
               className="flex size-5 cursor-grab items-center justify-center text-muted-foreground opacity-0 group-hover:opacity-100"
-              aria-hidden
               data-checklist-drag-handle
+              role="button"
+              aria-label="Drag checklist item"
             >
               <GripVertical className="size-3.5" />
             </span>

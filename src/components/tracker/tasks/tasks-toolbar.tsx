@@ -14,8 +14,11 @@ import {
   Table2,
 } from "lucide-react";
 import { HomeFilterChip } from "@/components/home/home-filter-chip";
+import { TasksGroupingSettings } from "@/components/tracker/tasks/tasks-grouping-settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { TaskGroupBy } from "@/features/tracker/tasks/task-grouping";
 import type { TasksView } from "@/features/tracker/tasks/tasks-page-state";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +26,8 @@ type TasksToolbarProps = {
   title: string;
   view: TasksView;
   onViewChange: (view: TasksView) => void;
+  groupingLevels: TaskGroupBy[];
+  onGroupingLevelsChange: (levels: TaskGroupBy[]) => void;
   onAddTask: () => void;
   onRefresh?: () => void;
   onOpenSpaceSettings: () => void;
@@ -35,6 +40,8 @@ export const TasksToolbar = ({
   title,
   view,
   onViewChange,
+  groupingLevels,
+  onGroupingLevelsChange,
   onAddTask,
   onRefresh,
   onOpenSpaceSettings,
@@ -163,9 +170,27 @@ export const TasksToolbar = ({
           <Button type="button" variant="ghost" size="icon-sm" aria-label="Search in view" disabled>
             <Search aria-hidden className="size-3.5" />
           </Button>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="Layout settings" disabled>
-            <LayoutList aria-hidden className="size-3.5" />
-          </Button>
+          {view === "table" ? (
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <Button type="button" variant="ghost" size="icon-sm" aria-label="Layout settings" />
+                }
+              >
+                <LayoutList aria-hidden className="size-3.5" />
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-auto p-2">
+                <TasksGroupingSettings
+                  levels={groupingLevels}
+                  onLevelsChange={onGroupingLevelsChange}
+                />
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Layout settings" disabled>
+              <LayoutList aria-hidden className="size-3.5" />
+            </Button>
+          )}
           <Button type="button" variant="ghost" size="icon-sm" aria-label="More actions" disabled>
             <MoreHorizontal aria-hidden className="size-3.5" />
           </Button>

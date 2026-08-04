@@ -29,6 +29,10 @@ import { SpaceSettingsModal } from "@/components/tracker/tasks/space-settings-mo
 import { TasksListView } from "@/components/tracker/tasks/tasks-list-view";
 import { TasksToolbar } from "@/components/tracker/tasks/tasks-toolbar";
 import {
+  DEFAULT_TASK_GROUPING_LEVELS,
+  type TaskGroupBy,
+} from "@/features/tracker/tasks/task-grouping";
+import {
   buildTasksHref,
   filterTasksByScope,
   getBreadcrumbSegments,
@@ -56,6 +60,7 @@ const TrackerTasksPageContent = () => {
   const pageState = useMemo(() => parseTasksPageState(searchParams), [searchParams]);
 
   const [tasks, setTasks] = useState<TodayTask[]>(ALL_TASKS);
+  const [groupingLevels, setGroupingLevels] = useState<TaskGroupBy[]>(DEFAULT_TASK_GROUPING_LEVELS);
   const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
   const [isSpaceSettingsOpen, setIsSpaceSettingsOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -160,6 +165,8 @@ const TrackerTasksPageContent = () => {
               title={getScopeTitle(pageState.scope)}
               view={pageState.view}
               onViewChange={(view) => replacePageState({ view })}
+              groupingLevels={groupingLevels}
+              onGroupingLevelsChange={setGroupingLevels}
               onAddTask={handleAddTask}
               onRefresh={() => router.refresh()}
               onOpenSpaceSettings={() => setIsSpaceSettingsOpen(true)}

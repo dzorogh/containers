@@ -696,10 +696,10 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                         </TableRow>
                         {checklistExpanded ? (
                           <TableRow
-                            className="bg-muted/20 hover:bg-muted/20"
+                            className="border-0 hover:bg-transparent"
                             onDragStart={(event) => event.preventDefault()}
                           >
-                            <TableCell colSpan={5} className="px-3 py-3 pl-12">
+                            <TableCell colSpan={5} className="p-0">
                               <TaskChecklist
                                 items={task.checklist ?? []}
                                 onChange={(checklist) => updateTask(task.id, { checklist })}

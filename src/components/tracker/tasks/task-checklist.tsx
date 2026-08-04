@@ -273,7 +273,7 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
                 aria-label="Edit checklist item"
                 className={cn(
                   "flex-1",
-                  item.done && !editing && "font-normal text-muted-foreground line-through",
+                  item.done && !editing && "text-muted-foreground line-through",
                 )}
               />
               <Button

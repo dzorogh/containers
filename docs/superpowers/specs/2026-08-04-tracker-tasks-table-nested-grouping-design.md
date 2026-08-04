@@ -25,7 +25,7 @@ Replace the hard-coded single-level stage grouping in the tasks table with user-
 | Empty groups | Hide (render only non-empty buckets) |
 | Deadline empty / far-future | Relative: `No deadline` + `Later`. Month/Week: `No deadline` + concrete period buckets only |
 | Reference clock | `DEMO_REFERENCE_NOW` |
-| New task | Add row on **every** group node (every nesting level) |
+| New task | Add row only on **leaf** groups (bottom nesting level) |
 | Drag-and-drop | Drop updates **all** fields implied by the target group's path |
 | Collapse | Local state keyed by full path; reset when `groupingLevels` changes |
 | Calendar / Board | Out of scope |
@@ -121,7 +121,7 @@ Pure helpers (feature module):
 
 - `groupingLevels.length === 0` → flat table (no group headers); one global New task row at the bottom (or keep a single add row — flat list has no group path, so new task uses default stage / unassigned / no forced deadline)
 - Otherwise: recursive collapsible headers with indent by depth, task count per node, task rows only in leaves
-- After each node's children/tasks: a New task row that inherits that node's full `path`
+- After leaf node tasks: a New task row that inherits that leaf's full `path` (no add row on intermediate groups)
 - Visual: reuse current stage-header styling; deeper levels slightly more indented
 
 ### Flat list New task
@@ -132,7 +132,7 @@ With 0 levels: one add row; created task uses existing defaults (`DEFAULT_DEMO_T
 
 ### New task
 
-On every group node (all nesting levels), not only leaves. Created task is passed through `applyGroupPathToTask` for that node's path before insert.
+Only on leaf group nodes (bottom nesting level). Created task is passed through `applyGroupPathToTask` for that leaf's path before insert.
 
 Representative deadlines:
 
@@ -186,7 +186,7 @@ Optional unit tests next to the feature module for bucket classification, nestin
 1. User can configure 0–5 nested grouping levels from the five dimensions, reorder, and remove them via Layout settings.
 2. Default table still opens grouped by Stage.
 3. Nested headers collapse independently; only non-empty groups show.
-4. New task on any group level inherits the full path.
+4. New task on each leaf group inherits the full path.
 5. DnD into a group updates all path fields (stage, assignee, deadline as applicable).
 6. Calendar and other views remain unchanged.
 7. UI copy is English; demo-only, no API.

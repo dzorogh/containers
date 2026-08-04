@@ -179,7 +179,10 @@ const collectVisibleRowIds = (
     }
     ids.push(...collectVisibleRowIds(node.children, collapsedPathKeys));
     ids.push(...node.tasks.map((task) => task.id));
-    ids.push(addRowIdForPath(pathKey));
+    // Add row only on leaf groups (bottom nesting level).
+    if (node.children.length === 0) {
+      ids.push(addRowIdForPath(pathKey));
+    }
   }
   return ids;
 };
@@ -756,7 +759,9 @@ export const TasksListView = ({
           <>
             {node.children.map((child) => renderGroupNode(child, depth + 1))}
             {node.tasks.map((task) => renderTaskRow(task, node.path, depth))}
-            {renderAddRow(node.path, pathKey, node.label, depth)}
+            {node.children.length === 0
+              ? renderAddRow(node.path, pathKey, node.label, depth)
+              : null}
           </>
         ) : null}
       </Fragment>

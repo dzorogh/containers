@@ -191,7 +191,7 @@ const createTask = (config: {
       planningDate,
     },
     deadlineLabel: formatDeadlineLabel(deadlineAt, DEMO_REFERENCE_NOW),
-    href: `/tracker/tasks?task=${config.id}`,
+    href: `/tracker/tasks/${config.id}`,
     assigneeName: config.assigneeName ?? assignee.name,
     assigneeAvatarUrl: assigneeAvatarUrl(config.assigneeId ?? assignee.id),
     spaceId: config.spaceId ?? inferSpaceId(config.projectName),

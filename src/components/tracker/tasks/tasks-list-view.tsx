@@ -10,7 +10,8 @@ import {
   type KeyboardEvent,
   type SetStateAction,
 } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, ChevronRight, SquareArrowOutUpRight } from "lucide-react";
 import {
   DEFAULT_DEMO_TASK_STAGE_ID,
   DEMO_TASK_STAGES,
@@ -131,7 +132,7 @@ const buildCreatedTask = (
   const deadlineAt = new Date().toISOString();
   return {
     id: taskId,
-    href: `/tracker/tasks?task=${taskId}`,
+    href: `/tracker/tasks/${taskId}`,
     title,
     projectName: "No project",
     priority: "medium",
@@ -521,6 +522,16 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                                   {checklistProgress.done}/{checklistProgress.total}
                                 </button>
                               ) : null}
+                              <Link
+                                href={`/tracker/tasks/${task.id}`}
+                                draggable={false}
+                                className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                                aria-label="Open task"
+                                onPointerDown={(event) => event.stopPropagation()}
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <SquareArrowOutUpRight className="size-3.5" aria-hidden />
+                              </Link>
                             </div>
                           </TableCell>
                           <TableCell className="px-3 py-2">

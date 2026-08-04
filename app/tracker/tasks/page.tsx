@@ -105,7 +105,7 @@ const TrackerTasksPageContent = () => {
     const deadlineAt = new Date().toISOString();
     const nextTask: TodayTask = {
       id: taskId,
-      href: `/tracker/tasks?task=${taskId}`,
+      href: `/tracker/tasks/${taskId}`,
       title: trimmedTitle,
       projectName: createProject.trim() || "No project",
       priority: "medium",

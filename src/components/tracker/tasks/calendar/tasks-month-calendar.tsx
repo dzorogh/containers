@@ -279,7 +279,7 @@ export const TasksMonthCalendar = ({ tasks, onTasksChange }: TasksMonthCalendarP
     const taskId = `task-${Date.now()}`;
     const nextTask: CalendarTask = {
       id: taskId,
-      href: `/tracker/tasks?task=${taskId}`,
+      href: `/tracker/tasks/${taskId}`,
       title: trimmedTitle,
       projectName: quickCreateProject.trim() || "No project",
       priority: "medium",

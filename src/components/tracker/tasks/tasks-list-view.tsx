@@ -239,6 +239,29 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
       return;
     }
 
+    // Add rows only edit title — step to the adjacent visible row.
+    if (isAddRowId(rowId)) {
+      const nextRowIndex = rowIndex + delta;
+      if (nextRowIndex < 0 || nextRowIndex >= rowIds.length) {
+        return;
+      }
+      const nextRowId = rowIds[nextRowIndex];
+      if (isAddRowId(nextRowId)) {
+        setActiveCell({ rowId: nextRowId, field: "title" });
+        setFocusRequest({ rowId: nextRowId, field: "title" });
+        return;
+      }
+      const nextField = delta === 1 ? EDITABLE_FIELDS[0] : EDITABLE_FIELDS[EDITABLE_FIELDS.length - 1];
+      if (nextField === "title") {
+        const task = tasks.find((item) => item.id === nextRowId);
+        setTitleDraft(task?.title ?? "");
+      }
+      const next: ActiveCell = { rowId: nextRowId, field: nextField };
+      setActiveCell(next);
+      setFocusRequest(next);
+      return;
+    }
+
     let nextFieldIndex = fieldIndex + delta;
     let nextRowIndex = rowIndex;
 
@@ -255,24 +278,15 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
     }
 
     const nextRowId = rowIds[nextRowIndex];
-    // Add row only edits title; skip other fields.
-    if (isAddRowId(nextRowId) && EDITABLE_FIELDS[nextFieldIndex] !== "title") {
-      if (delta === 1) {
-        setActiveCell({ rowId: nextRowId, field: "title" });
-        setFocusRequest({ rowId: nextRowId, field: "title" });
-      } else {
-        const previousTaskId = rowIds[nextRowIndex - 1];
-        if (!previousTaskId || isAddRowId(previousTaskId)) {
-          return;
-        }
-        setActiveCell({ rowId: previousTaskId, field: "assignee" });
-        setFocusRequest({ rowId: previousTaskId, field: "assignee" });
-      }
+    // Landing on an add row: only title is editable — clamp field.
+    if (isAddRowId(nextRowId)) {
+      setActiveCell({ rowId: nextRowId, field: "title" });
+      setFocusRequest({ rowId: nextRowId, field: "title" });
       return;
     }
 
     const next: ActiveCell = { rowId: nextRowId, field: EDITABLE_FIELDS[nextFieldIndex] };
-    if (next.field === "title" && !isAddRowId(next.rowId)) {
+    if (next.field === "title") {
       const task = tasks.find((item) => item.id === next.rowId);
       setTitleDraft(task?.title ?? "");
     }
@@ -345,16 +359,8 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
       event.preventDefault();
       skipAddBlurCommitRef.current = true;
       const created = commitAddRow(stageId);
-      if (!created && !event.shiftKey) {
-        return;
-      }
-      if (!created && event.shiftKey) {
-        const stageTasks = tasksByStage.find((group) => group.stage.id === stageId)?.tasks ?? [];
-        const lastTask = stageTasks[stageTasks.length - 1];
-        if (lastTask) {
-          setActiveCell({ rowId: lastTask.id, field: "assignee" });
-          setFocusRequest({ rowId: lastTask.id, field: "assignee" });
-        }
+      if (!created) {
+        moveActiveCell(addRowIdForStage(stageId), "title", event.shiftKey ? -1 : 1);
       }
     }
   };

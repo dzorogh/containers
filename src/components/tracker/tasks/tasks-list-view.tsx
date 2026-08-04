@@ -22,6 +22,8 @@ import {
 } from "@/components/home/tasks-today-demo-data";
 import { COLOR_CLASS_BY_TASK } from "@/components/tracker/tasks/calendar/calendar-color-map";
 import { formatDeadlineLabel } from "@/components/tracker/tasks/calendar/calendar-utils";
+import { countChecklist } from "@/components/tracker/tasks/checklist-tree";
+import { TaskChecklist } from "@/components/tracker/tasks/task-checklist";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
@@ -158,6 +160,30 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
   const [focusRequest, setFocusRequest] = useState<ActiveCell | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<DemoTaskStageId | null>(null);
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(() => new Set());
+
+  const toggleTaskExpanded = (taskId: string) => {
+    setExpandedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  };
+
+  const expandTask = (taskId: string) => {
+    setExpandedTaskIds((prev) => {
+      if (prev.has(taskId)) {
+        return prev;
+      }
+      const next = new Set(prev);
+      next.add(taskId);
+      return next;
+    });
+  };
 
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const addTitleInputRefs = useRef<Partial<Record<DemoTaskStageId, HTMLInputElement | null>>>({});
@@ -457,181 +483,231 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                   stageTasks.map((task) => {
                     const selected = selectedIds.has(task.id);
                     const editingTitle = activeCell?.rowId === task.id && activeCell.field === "title";
+                    const checklistExpanded = expandedTaskIds.has(task.id);
+                    const checklistProgress = countChecklist(task.checklist ?? []);
+                    const TaskExpandIcon = checklistExpanded ? ChevronDown : ChevronRight;
 
                     return (
-                      <TableRow
-                        key={task.id}
-                        draggable
-                        onDragStart={(event) => {
-                          event.dataTransfer.setData("text/plain", task.id);
-                          event.dataTransfer.effectAllowed = "move";
-                          setDraggedTaskId(task.id);
-                        }}
-                        onDragEnd={() => {
-                          setDraggedTaskId(null);
-                          setDragOverStageId(null);
-                        }}
-                        className={cn(draggedTaskId === task.id && "opacity-50")}
-                        data-state={selected ? "selected" : undefined}
-                        {...stageDropHandlers}
-                      >
-                        <TableCell className="px-3 py-2">
-                          <Checkbox
-                            checked={selected}
-                            onCheckedChange={(value) => toggleSelected(task.id, value === true)}
-                            aria-label={`Select task ${task.title}`}
-                          />
-                        </TableCell>
-                        <TableCell className="max-w-0 min-w-[12rem] px-3 py-2">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span
-                              aria-hidden
-                              className={cn("size-2 shrink-0 rounded-full", COLOR_CLASS_BY_TASK[task.color])}
+                      <Fragment key={task.id}>
+                        <TableRow
+                          draggable
+                          onDragStart={(event) => {
+                            event.dataTransfer.setData("text/plain", task.id);
+                            event.dataTransfer.effectAllowed = "move";
+                            setDraggedTaskId(task.id);
+                          }}
+                          onDragEnd={() => {
+                            setDraggedTaskId(null);
+                            setDragOverStageId(null);
+                          }}
+                          className={cn(draggedTaskId === task.id && "opacity-50")}
+                          data-state={selected ? "selected" : undefined}
+                          {...stageDropHandlers}
+                        >
+                          <TableCell className="px-3 py-2">
+                            <Checkbox
+                              checked={selected}
+                              onCheckedChange={(value) => toggleSelected(task.id, value === true)}
+                              aria-label={`Select task ${task.title}`}
                             />
-                            {editingTitle ? (
-                              <Input
-                                ref={titleInputRef}
-                                value={titleDraft}
-                                onChange={(event) => setTitleDraft(event.target.value)}
-                                onBlur={() => {
-                                  if (skipTitleBlurCommitRef.current) {
-                                    skipTitleBlurCommitRef.current = false;
-                                    return;
-                                  }
-                                  commitExistingTitle(task, titleDraft);
-                                }}
-                                onKeyDown={(event) => handleTitleKeyDown(event, task)}
-                                aria-label={`Edit title for ${task.title}`}
-                                className="h-8"
-                              />
-                            ) : (
+                          </TableCell>
+                          <TableCell className="max-w-0 min-w-[12rem] px-3 py-2">
+                            <div className="flex min-w-0 items-center gap-2">
                               <button
                                 type="button"
-                                className="min-w-0 truncate text-left text-sm font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                                onClick={() => beginTitleEdit(task)}
+                                className="flex size-5 shrink-0 items-center justify-center text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  toggleTaskExpanded(task.id);
+                                }}
+                                aria-expanded={checklistExpanded}
+                                aria-label={
+                                  checklistExpanded ? "Collapse checklist" : "Expand checklist"
+                                }
                               >
-                                {task.title}
+                                <TaskExpandIcon className="size-4" aria-hidden />
                               </button>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="px-3 py-2">
-                          <Select
-                            items={PRIORITY_SELECT_ITEMS}
-                            value={task.priority}
-                            onValueChange={(value) => {
-                              if (!value || !(PRIORITY_OPTIONS as string[]).includes(value)) {
-                                return;
-                              }
-                              updateTask(task.id, { priority: value as TaskPriority });
-                            }}
-                          >
-                            <SelectTrigger
-                              size="sm"
-                              className="w-full max-w-[7.5rem] bg-transparent"
-                              aria-label={`Priority for ${task.title}`}
-                              data-task-cell={`${task.id}:priority`}
-                              onFocus={() => setActiveCell({ rowId: task.id, field: "priority" })}
-                              onKeyDown={(event) => {
-                                if (event.key === "Tab") {
-                                  event.preventDefault();
-                                  moveActiveCell(task.id, "priority", event.shiftKey ? -1 : 1);
+                              <span
+                                aria-hidden
+                                className={cn(
+                                  "size-2 shrink-0 rounded-full",
+                                  COLOR_CLASS_BY_TASK[task.color],
+                                )}
+                              />
+                              {editingTitle ? (
+                                <Input
+                                  ref={titleInputRef}
+                                  value={titleDraft}
+                                  onChange={(event) => setTitleDraft(event.target.value)}
+                                  onBlur={() => {
+                                    if (skipTitleBlurCommitRef.current) {
+                                      skipTitleBlurCommitRef.current = false;
+                                      return;
+                                    }
+                                    commitExistingTitle(task, titleDraft);
+                                  }}
+                                  onKeyDown={(event) => handleTitleKeyDown(event, task)}
+                                  aria-label={`Edit title for ${task.title}`}
+                                  className="h-8"
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="min-w-0 truncate text-left text-sm font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                                  onClick={() => beginTitleEdit(task)}
+                                >
+                                  {task.title}
+                                </button>
+                              )}
+                              {checklistProgress.total > 0 ? (
+                                <button
+                                  type="button"
+                                  className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground outline-none hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    expandTask(task.id);
+                                  }}
+                                  aria-label={`Checklist progress ${checklistProgress.done} of ${checklistProgress.total}`}
+                                >
+                                  {checklistProgress.done}/{checklistProgress.total}
+                                </button>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-3 py-2">
+                            <Select
+                              items={PRIORITY_SELECT_ITEMS}
+                              value={task.priority}
+                              onValueChange={(value) => {
+                                if (!value || !(PRIORITY_OPTIONS as string[]).includes(value)) {
+                                  return;
                                 }
+                                updateTask(task.id, { priority: value as TaskPriority });
                               }}
                             >
-                              <SelectValue placeholder={PRIORITY_LABELS[task.priority]} />
-                            </SelectTrigger>
-                            <SelectContent align="start">
-                              <SelectGroup>
-                                {PRIORITY_OPTIONS.map((priority) => (
-                                  <SelectItem key={priority} value={priority}>
-                                    {PRIORITY_LABELS[priority]}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell className="px-3 py-2">
-                          <Input
-                            type="date"
-                            value={toDateInputValue(task.deadlineAt)}
-                            aria-label={`Deadline for ${task.title}`}
-                            className="h-8"
-                            data-task-cell={`${task.id}:deadline`}
-                            onFocus={() => setActiveCell({ rowId: task.id, field: "deadline" })}
-                            onChange={(event) => {
-                              const nextIso = deadlineFromDateInput(event.target.value, task.deadlineAt);
-                              updateTask(task.id, {
-                                deadlineAt: nextIso,
-                                deadlineLabel: formatDeadlineLabel(nextIso),
-                                customDateFields: {
-                                  ...task.customDateFields,
-                                  planningDate: nextIso,
-                                },
-                              });
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Tab") {
-                                event.preventDefault();
-                                moveActiveCell(task.id, "deadline", event.shiftKey ? -1 : 1);
-                              }
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell className="px-3 py-2">
-                          <Select
-                            items={ASSIGNEE_SELECT_ITEMS}
-                            value={resolveAssigneeId(task)}
-                            onValueChange={(value) => {
-                              if (!value) {
-                                return;
-                              }
-                              if (value === ASSIGNEE_UNASSIGNED) {
+                              <SelectTrigger
+                                size="sm"
+                                className="w-full max-w-[7.5rem] bg-transparent"
+                                aria-label={`Priority for ${task.title}`}
+                                data-task-cell={`${task.id}:priority`}
+                                onFocus={() => setActiveCell({ rowId: task.id, field: "priority" })}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Tab") {
+                                    event.preventDefault();
+                                    moveActiveCell(task.id, "priority", event.shiftKey ? -1 : 1);
+                                  }
+                                }}
+                              >
+                                <SelectValue placeholder={PRIORITY_LABELS[task.priority]} />
+                              </SelectTrigger>
+                              <SelectContent align="start">
+                                <SelectGroup>
+                                  {PRIORITY_OPTIONS.map((priority) => (
+                                    <SelectItem key={priority} value={priority}>
+                                      {PRIORITY_LABELS[priority]}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell className="px-3 py-2">
+                            <Input
+                              type="date"
+                              value={toDateInputValue(task.deadlineAt)}
+                              aria-label={`Deadline for ${task.title}`}
+                              className="h-8"
+                              data-task-cell={`${task.id}:deadline`}
+                              onFocus={() => setActiveCell({ rowId: task.id, field: "deadline" })}
+                              onChange={(event) => {
+                                const nextIso = deadlineFromDateInput(
+                                  event.target.value,
+                                  task.deadlineAt,
+                                );
                                 updateTask(task.id, {
-                                  assigneeName: "Unassigned",
-                                  assigneeAvatarUrl: taskAssigneeAvatarUrl(task.id),
+                                  deadlineAt: nextIso,
+                                  deadlineLabel: formatDeadlineLabel(nextIso),
+                                  customDateFields: {
+                                    ...task.customDateFields,
+                                    planningDate: nextIso,
+                                  },
                                 });
-                                return;
-                              }
-                              const assignee = DEMO_TASK_ASSIGNEES.find((item) => item.id === value);
-                              if (!assignee) {
-                                return;
-                              }
-                              updateTask(task.id, {
-                                assigneeName: assignee.name,
-                                assigneeAvatarUrl: taskAssigneeAvatarUrl(assignee.id),
-                              });
-                            }}
-                          >
-                            <SelectTrigger
-                              size="sm"
-                              className="w-full bg-transparent"
-                              aria-label={`Assignee for ${task.title}`}
-                              data-task-cell={`${task.id}:assignee`}
-                              onFocus={() => setActiveCell({ rowId: task.id, field: "assignee" })}
+                              }}
                               onKeyDown={(event) => {
                                 if (event.key === "Tab") {
                                   event.preventDefault();
-                                  moveActiveCell(task.id, "assignee", event.shiftKey ? -1 : 1);
+                                  moveActiveCell(task.id, "deadline", event.shiftKey ? -1 : 1);
                                 }
                               }}
+                            />
+                          </TableCell>
+                          <TableCell className="px-3 py-2">
+                            <Select
+                              items={ASSIGNEE_SELECT_ITEMS}
+                              value={resolveAssigneeId(task)}
+                              onValueChange={(value) => {
+                                if (!value) {
+                                  return;
+                                }
+                                if (value === ASSIGNEE_UNASSIGNED) {
+                                  updateTask(task.id, {
+                                    assigneeName: "Unassigned",
+                                    assigneeAvatarUrl: taskAssigneeAvatarUrl(task.id),
+                                  });
+                                  return;
+                                }
+                                const assignee = DEMO_TASK_ASSIGNEES.find((item) => item.id === value);
+                                if (!assignee) {
+                                  return;
+                                }
+                                updateTask(task.id, {
+                                  assigneeName: assignee.name,
+                                  assigneeAvatarUrl: taskAssigneeAvatarUrl(assignee.id),
+                                });
+                              }}
                             >
-                              <SelectValue placeholder={task.assigneeName} />
-                            </SelectTrigger>
-                            <SelectContent align="start">
-                              <SelectGroup>
-                                <SelectItem value={ASSIGNEE_UNASSIGNED}>Unassigned</SelectItem>
-                                {DEMO_TASK_ASSIGNEES.map((assignee) => (
-                                  <SelectItem key={assignee.id} value={assignee.id}>
-                                    {assignee.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                      </TableRow>
+                              <SelectTrigger
+                                size="sm"
+                                className="w-full bg-transparent"
+                                aria-label={`Assignee for ${task.title}`}
+                                data-task-cell={`${task.id}:assignee`}
+                                onFocus={() => setActiveCell({ rowId: task.id, field: "assignee" })}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Tab") {
+                                    event.preventDefault();
+                                    moveActiveCell(task.id, "assignee", event.shiftKey ? -1 : 1);
+                                  }
+                                }}
+                              >
+                                <SelectValue placeholder={task.assigneeName} />
+                              </SelectTrigger>
+                              <SelectContent align="start">
+                                <SelectGroup>
+                                  <SelectItem value={ASSIGNEE_UNASSIGNED}>Unassigned</SelectItem>
+                                  {DEMO_TASK_ASSIGNEES.map((assignee) => (
+                                    <SelectItem key={assignee.id} value={assignee.id}>
+                                      {assignee.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                        </TableRow>
+                        {checklistExpanded ? (
+                          <TableRow
+                            className="bg-muted/20 hover:bg-muted/20"
+                            onDragStart={(event) => event.preventDefault()}
+                          >
+                            <TableCell colSpan={5} className="px-3 py-3 pl-12">
+                              <TaskChecklist
+                                items={task.checklist ?? []}
+                                onChange={(checklist) => updateTask(task.id, { checklist })}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
+                      </Fragment>
                     );
                   })}
 

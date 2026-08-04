@@ -12,7 +12,8 @@ import {
   type SetStateAction,
 } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, SquareArrowOutUpRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronRight, Plus, SquareArrowOutUpRight } from "lucide-react";
 import {
   DEFAULT_DEMO_TASK_STAGE_ID,
   DEMO_REFERENCE_NOW,
@@ -30,6 +31,14 @@ import {
   type InlineEditableTextHandle,
 } from "@/components/tracker/tasks/inline-editable-text";
 import { TaskChecklist, TREE_STEP_PX } from "@/components/tracker/tasks/task-checklist";
+import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -44,6 +53,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   applyGroupPathToTask,
   groupTasks,
+  insertTaskAmongSiblings,
   resolveBucket,
   serializeGroupPath,
   type GroupPathSegment,
@@ -71,15 +81,26 @@ const ASSIGNEE_SELECT_ITEMS = [
 ];
 
 const FLAT_PATH_KEY = "__flat__";
-
-const addRowIdForPath = (pathKey: string) => `__new__:${pathKey}`;
-
-const isAddRowId = (rowId: string) => rowId.startsWith("__new__:");
-
-const pathKeyFromAddRowId = (rowId: string) => rowId.slice("__new__:".length);
+const DRAFT_ROW_ID = "__draft__";
 
 const countNodeTasks = (node: TaskGroupNode): number =>
   node.tasks.length + node.children.reduce((sum, child) => sum + countNodeTasks(child), 0);
+
+const findLeafNodeByPathKey = (
+  nodes: TaskGroupNode[],
+  pathKey: string,
+): TaskGroupNode | null => {
+  for (const node of nodes) {
+    if (serializeGroupPath(node.path) === pathKey) {
+      return node;
+    }
+    const nested = findLeafNodeByPathKey(node.children, pathKey);
+    if (nested) {
+      return nested;
+    }
+  }
+  return null;
+};
 
 type EditableField = "title" | "priority" | "deadline" | "assignee";
 
@@ -88,6 +109,18 @@ const EDITABLE_FIELDS: EditableField[] = ["title", "priority", "deadline", "assi
 type ActiveCell = {
   rowId: string;
   field: EditableField;
+};
+
+type TaskDraft = {
+  pathKey: string;
+  path: GroupPathSegment[];
+  insertIndex: number;
+  title: string;
+};
+
+type HoverInsert = {
+  pathKey: string;
+  edgeIndex: number;
 };
 
 type TasksListViewProps = {
@@ -170,6 +203,7 @@ const buildCreatedTask = (
 const collectVisibleRowIds = (
   nodes: TaskGroupNode[],
   collapsedPathKeys: Set<string>,
+  draft: TaskDraft | null,
 ): string[] => {
   const ids: string[] = [];
   for (const node of nodes) {
@@ -177,12 +211,32 @@ const collectVisibleRowIds = (
     if (collapsedPathKeys.has(pathKey)) {
       continue;
     }
-    ids.push(...collectVisibleRowIds(node.children, collapsedPathKeys));
-    ids.push(...node.tasks.map((task) => task.id));
-    // Add row only on leaf groups (bottom nesting level).
+    ids.push(...collectVisibleRowIds(node.children, collapsedPathKeys, draft));
     if (node.children.length === 0) {
-      ids.push(addRowIdForPath(pathKey));
+      node.tasks.forEach((task, index) => {
+        if (draft?.pathKey === pathKey && draft.insertIndex === index) {
+          ids.push(DRAFT_ROW_ID);
+        }
+        ids.push(task.id);
+      });
+      if (draft?.pathKey === pathKey && draft.insertIndex >= node.tasks.length) {
+        ids.push(DRAFT_ROW_ID);
+      }
     }
+  }
+  return ids;
+};
+
+const collectFlatVisibleRowIds = (tasks: TodayTask[], draft: TaskDraft | null): string[] => {
+  const ids: string[] = [];
+  tasks.forEach((task, index) => {
+    if (draft?.pathKey === FLAT_PATH_KEY && draft.insertIndex === index) {
+      ids.push(DRAFT_ROW_ID);
+    }
+    ids.push(task.id);
+  });
+  if (draft?.pathKey === FLAT_PATH_KEY && draft.insertIndex >= tasks.length) {
+    ids.push(DRAFT_ROW_ID);
   }
   return ids;
 };
@@ -193,13 +247,15 @@ export const TasksListView = ({
   spaceId,
   groupingLevels,
 }: TasksListViewProps) => {
+  const router = useRouter();
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
   const [collapsedPathKeys, setCollapsedPathKeys] = useState<Set<string>>(() => new Set());
-  const [addTitles, setAddTitles] = useState<Record<string, string>>({});
+  const [draft, setDraft] = useState<TaskDraft | null>(null);
   const [focusRequest, setFocusRequest] = useState<ActiveCell | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverPathKey, setDragOverPathKey] = useState<string | null>(null);
   const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(() => new Set());
+  const [hoverInsert, setHoverInsert] = useState<HoverInsert | null>(null);
   const groupingLevelsKey = groupingLevels.join("|");
   const [collapseResetKey, setCollapseResetKey] = useState(groupingLevelsKey);
   if (collapseResetKey !== groupingLevelsKey) {
@@ -231,15 +287,15 @@ export const TasksListView = ({
   };
 
   const titleEditableRef = useRef<InlineEditableTextHandle | null>(null);
-  const addTitleInputRefs = useRef<Partial<Record<string, HTMLInputElement | null>>>({});
-  const skipAddBlurCommitRef = useRef(false);
+  const draftInputRef = useRef<HTMLInputElement | null>(null);
+  const skipDraftBlurCommitRef = useRef(false);
 
   const groupTree = groupTasks(tasks, groupingLevels, DEMO_REFERENCE_NOW);
   const isFlatMode = groupingLevels.length === 0;
 
   const visibleRowIds = isFlatMode
-    ? [...tasks.map((task) => task.id), addRowIdForPath(FLAT_PATH_KEY)]
-    : collectVisibleRowIds(groupTree, collapsedPathKeys);
+    ? collectFlatVisibleRowIds(tasks, draft)
+    : collectVisibleRowIds(groupTree, collapsedPathKeys, draft);
 
   const togglePathCollapsed = (pathKey: string) => {
     setCollapsedPathKeys((prev) => {
@@ -256,6 +312,46 @@ export const TasksListView = ({
   const createFromPath = (title: string, path: GroupPathSegment[]) => {
     const base = buildCreatedTask(title, spaceId, DEFAULT_DEMO_TASK_STAGE_ID);
     return applyGroupPathToTask(base, path, DEMO_REFERENCE_NOW);
+  };
+
+  const openDraft = (pathKey: string, path: GroupPathSegment[], insertIndex: number) => {
+    setDraft({ pathKey, path, insertIndex, title: "" });
+    setActiveCell({ rowId: DRAFT_ROW_ID, field: "title" });
+    setFocusRequest({ rowId: DRAFT_ROW_ID, field: "title" });
+  };
+
+  const siblingIdsForPath = (pathKey: string, path: GroupPathSegment[]): string[] => {
+    if (pathKey === FLAT_PATH_KEY || path.length === 0) {
+      return tasks.map((task) => task.id);
+    }
+    const node = findLeafNodeByPathKey(groupTree, pathKey);
+    return node?.tasks.map((task) => task.id) ?? [];
+  };
+
+  const commitDraft = () => {
+    if (!draft) {
+      return false;
+    }
+    const trimmed = draft.title.trim();
+    if (!trimmed) {
+      setDraft(null);
+      setActiveCell(null);
+      return false;
+    }
+    const nextTask =
+      draft.pathKey === FLAT_PATH_KEY || draft.path.length === 0
+        ? buildCreatedTask(trimmed, spaceId, DEFAULT_DEMO_TASK_STAGE_ID)
+        : createFromPath(trimmed, draft.path);
+    const siblings = siblingIdsForPath(draft.pathKey, draft.path);
+    onTasksChange((prev) => insertTaskAmongSiblings(prev, siblings, nextTask, draft.insertIndex));
+    setDraft(null);
+    setActiveCell(null);
+    return true;
+  };
+
+  const cancelDraft = () => {
+    setDraft(null);
+    setActiveCell(null);
   };
 
   const handleDropToPath = (path: GroupPathSegment[]) => {
@@ -314,23 +410,6 @@ export const TasksListView = ({
     }
   };
 
-  const commitAddRow = (pathKey: string, path: GroupPathSegment[]) => {
-    const trimmed = (addTitles[pathKey] ?? "").trim();
-    if (!trimmed) {
-      return false;
-    }
-    const nextTask =
-      pathKey === FLAT_PATH_KEY || path.length === 0
-        ? buildCreatedTask(trimmed, spaceId, DEFAULT_DEMO_TASK_STAGE_ID)
-        : createFromPath(trimmed, path);
-    onTasksChange((prev) => [...prev, nextTask]);
-    setAddTitles((prev) => ({ ...prev, [pathKey]: "" }));
-    const rowId = addRowIdForPath(pathKey);
-    setActiveCell({ rowId, field: "title" });
-    setFocusRequest({ rowId, field: "title" });
-    return true;
-  };
-
   const moveActiveCell = (rowId: string, field: EditableField, delta: 1 | -1) => {
     const rowIds = visibleRowIds;
     const rowIndex = rowIds.indexOf(rowId);
@@ -339,14 +418,13 @@ export const TasksListView = ({
       return;
     }
 
-    // Add rows only edit title — step to the adjacent visible row.
-    if (isAddRowId(rowId)) {
+    if (rowId === DRAFT_ROW_ID) {
       const nextRowIndex = rowIndex + delta;
       if (nextRowIndex < 0 || nextRowIndex >= rowIds.length) {
         return;
       }
       const nextRowId = rowIds[nextRowIndex];
-      if (isAddRowId(nextRowId)) {
+      if (nextRowId === DRAFT_ROW_ID) {
         setActiveCell({ rowId: nextRowId, field: "title" });
         setFocusRequest({ rowId: nextRowId, field: "title" });
         return;
@@ -374,8 +452,7 @@ export const TasksListView = ({
     }
 
     const nextRowId = rowIds[nextRowIndex];
-    // Landing on an add row: only title is editable — clamp field.
-    if (isAddRowId(nextRowId)) {
+    if (nextRowId === DRAFT_ROW_ID) {
       setActiveCell({ rowId: nextRowId, field: "title" });
       setFocusRequest({ rowId: nextRowId, field: "title" });
       return;
@@ -396,12 +473,10 @@ export const TasksListView = ({
       return;
     }
     if (focusRequest.field === "title") {
-      if (isAddRowId(focusRequest.rowId)) {
-        const node = addTitleInputRefs.current[pathKeyFromAddRowId(focusRequest.rowId)];
-        node?.focus();
-        node?.select();
+      if (focusRequest.rowId === DRAFT_ROW_ID) {
+        draftInputRef.current?.focus();
+        draftInputRef.current?.select();
       }
-      // Task title caret/focus is owned by InlineEditableText when `editing` becomes true.
       setFocusRequest(null);
       return;
     }
@@ -409,66 +484,58 @@ export const TasksListView = ({
     const node = document.querySelector<HTMLElement>(selector);
     node?.focus();
     setFocusRequest(null);
-  }, [focusRequest, tasks.length]);
+  }, [focusRequest, tasks.length, draft]);
 
-  const handleAddTitleKeyDown = (
-    event: KeyboardEvent<HTMLInputElement>,
-    pathKey: string,
-    path: GroupPathSegment[],
-  ) => {
+  const handleDraftTitleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      skipAddBlurCommitRef.current = true;
-      commitAddRow(pathKey, path);
+      skipDraftBlurCommitRef.current = true;
+      commitDraft();
       return;
     }
     if (event.key === "Escape") {
       event.preventDefault();
-      setAddTitles((prev) => ({ ...prev, [pathKey]: "" }));
-      setActiveCell(null);
+      skipDraftBlurCommitRef.current = true;
+      cancelDraft();
       return;
     }
     if (event.key === "Tab") {
       event.preventDefault();
-      skipAddBlurCommitRef.current = true;
-      const created = commitAddRow(pathKey, path);
-      if (!created) {
-        moveActiveCell(addRowIdForPath(pathKey), "title", event.shiftKey ? -1 : 1);
+      skipDraftBlurCommitRef.current = true;
+      const created = commitDraft();
+      if (!created && draft) {
+        // Draft cancelled (empty) — nothing to tab from.
+        return;
       }
     }
   };
 
-  const renderAddRow = (
-    path: GroupPathSegment[],
-    pathKey: string,
-    groupLabel: string,
-    depth: number,
-  ): ReactNode => {
-    const addRowId = addRowIdForPath(pathKey);
-    const dropHandlers = path.length > 0 ? pathDropHandlers(path, pathKey) : {};
+  const renderDraftRow = (depth: number): ReactNode => {
+    if (!draft) {
+      return null;
+    }
+    const dropHandlers = draft.path.length > 0 ? pathDropHandlers(draft.path, draft.pathKey) : {};
     return (
-      <TableRow key={addRowId} className="hover:bg-muted/40" {...dropHandlers}>
+      <TableRow key={DRAFT_ROW_ID} className="hover:bg-muted/40" {...dropHandlers}>
         <TableCell className="px-3 py-2" colSpan={1}>
           <div style={{ paddingLeft: TREE_STEP_PX * 2 + depth * 16 }}>
             <Input
-              ref={(node) => {
-                addTitleInputRefs.current[pathKey] = node;
-              }}
-              value={addTitles[pathKey] ?? ""}
+              ref={draftInputRef}
+              value={draft.title}
               onChange={(event) =>
-                setAddTitles((prev) => ({ ...prev, [pathKey]: event.target.value }))
+                setDraft((prev) => (prev ? { ...prev, title: event.target.value } : prev))
               }
-              onFocus={() => setActiveCell({ rowId: addRowId, field: "title" })}
+              onFocus={() => setActiveCell({ rowId: DRAFT_ROW_ID, field: "title" })}
               onBlur={() => {
-                if (skipAddBlurCommitRef.current) {
-                  skipAddBlurCommitRef.current = false;
+                if (skipDraftBlurCommitRef.current) {
+                  skipDraftBlurCommitRef.current = false;
                   return;
                 }
-                commitAddRow(pathKey, path);
+                commitDraft();
               }}
-              onKeyDown={(event) => handleAddTitleKeyDown(event, pathKey, path)}
+              onKeyDown={handleDraftTitleKeyDown}
               placeholder="New task"
-              aria-label={`New task title in ${groupLabel}`}
+              aria-label="New task title"
               className="h-8 border-dashed"
             />
           </div>
@@ -481,229 +548,328 @@ export const TasksListView = ({
     );
   };
 
+  const renderTaskRowsWithDraft = (
+    groupTasksList: TodayTask[],
+    path: GroupPathSegment[],
+    pathKey: string,
+    depth: number,
+  ): ReactNode[] => {
+    const nodes: ReactNode[] = [];
+    groupTasksList.forEach((task, index) => {
+      if (draft?.pathKey === pathKey && draft.insertIndex === index) {
+        nodes.push(renderDraftRow(depth));
+      }
+      nodes.push(renderTaskRow(task, path, depth, index, pathKey));
+    });
+    if (draft?.pathKey === pathKey && draft.insertIndex >= groupTasksList.length) {
+      nodes.push(renderDraftRow(depth));
+    }
+    return nodes;
+  };
+
   const renderTaskRow = (
     task: TodayTask,
     path: GroupPathSegment[],
     depth: number,
+    taskIndex: number,
+    pathKey: string,
   ): ReactNode => {
     const editingTitle = activeCell?.rowId === task.id && activeCell.field === "title";
     const checklistExpanded = expandedTaskIds.has(task.id);
     const checklistProgress = countChecklist(task.checklist ?? []);
     const TaskExpandIcon = checklistExpanded ? ChevronDown : ChevronRight;
-    const pathKey = path.length > 0 ? serializeGroupPath(path) : FLAT_PATH_KEY;
     const dropHandlers = path.length > 0 ? pathDropHandlers(path, pathKey) : {};
+    const showTopInsert =
+      hoverInsert?.pathKey === pathKey && hoverInsert.edgeIndex === taskIndex;
+    const showBottomInsert =
+      hoverInsert?.pathKey === pathKey && hoverInsert.edgeIndex === taskIndex + 1;
 
     return (
       <Fragment key={task.id}>
-        <TableRow
-          draggable
-          onDragStart={(event) => {
-            event.dataTransfer.setData("text/plain", task.id);
-            event.dataTransfer.effectAllowed = "move";
-            setDraggedTaskId(task.id);
-          }}
-          onDragEnd={() => {
-            setDraggedTaskId(null);
-            setDragOverPathKey(null);
-          }}
-          className={cn(draggedTaskId === task.id && "opacity-50")}
-          {...dropHandlers}
-        >
-          <TableCell className="max-w-0 min-w-[12rem] px-3 py-2">
-            <div
-              className="flex min-w-0 items-center gap-2"
-              style={{ paddingLeft: TREE_STEP_PX + depth * 16 }}
-            >
-              <button
-                type="button"
-                className="flex size-5 shrink-0 items-center justify-center text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  toggleTaskExpanded(task.id);
+        <ContextMenu>
+          <ContextMenuTrigger
+            render={
+              <TableRow
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.setData("text/plain", task.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  setDraggedTaskId(task.id);
                 }}
-                aria-expanded={checklistExpanded}
-                aria-label={checklistExpanded ? "Collapse checklist" : "Expand checklist"}
-              >
-                <TaskExpandIcon className="size-4" aria-hidden />
-              </button>
-              <span
-                aria-hidden
-                className={cn("size-2 shrink-0 rounded-full", COLOR_CLASS_BY_TASK[task.color])}
-              />
-              <InlineEditableText
-                ref={editingTitle ? titleEditableRef : null}
-                value={task.title}
-                editing={editingTitle}
-                onBeginEdit={() => beginTitleEdit(task)}
-                onCommit={(next) => commitExistingTitle(task, next)}
-                onCancel={() => setActiveCell(null)}
-                onKeyDown={(event, draft) => {
-                  if (event.key !== "Tab") {
-                    return false;
-                  }
-                  event.preventDefault();
-                  titleEditableRef.current?.skipNextBlurCommit();
-                  commitExistingTitle(task, draft, false);
-                  moveActiveCell(task.id, "title", event.shiftKey ? -1 : 1);
-                  return true;
+                onDragEnd={() => {
+                  setDraggedTaskId(null);
+                  setDragOverPathKey(null);
                 }}
-                aria-label={`Edit title for ${task.title}`}
-                className={cn("text-foreground", task.done && "text-muted-foreground line-through")}
+                onMouseMove={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  const isUpper = event.clientY < rect.top + rect.height / 2;
+                  setHoverInsert({
+                    pathKey,
+                    edgeIndex: isUpper ? taskIndex : taskIndex + 1,
+                  });
+                }}
+                onMouseLeave={() => {
+                  setHoverInsert((current) =>
+                    current?.pathKey === pathKey ? null : current,
+                  );
+                }}
+                className={cn("relative", draggedTaskId === task.id && "opacity-50")}
+                {...dropHandlers}
               />
-              {checklistProgress.total > 0 ? (
+            }
+          >
+            <TableCell className="relative max-w-0 min-w-[12rem] px-3 py-2">
+              {showTopInsert ? (
                 <button
                   type="button"
-                  className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground outline-none hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Insert task above"
+                  className="absolute left-1/2 top-0 z-10 flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm hover:text-foreground"
                   onClick={(event) => {
                     event.stopPropagation();
-                    expandTask(task.id);
+                    openDraft(pathKey, path, taskIndex);
                   }}
-                  aria-label={`Checklist progress ${checklistProgress.done} of ${checklistProgress.total}`}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() =>
+                    setHoverInsert({ pathKey, edgeIndex: taskIndex })
+                  }
                 >
-                  {checklistProgress.done}/{checklistProgress.total}
+                  <Plus className="size-3" aria-hidden />
                 </button>
               ) : null}
-              <Link
-                href={`/tracker/tasks/${task.id}`}
-                draggable={false}
-                className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label="Open task"
-                onPointerDown={(event) => event.stopPropagation()}
+              {showBottomInsert ? (
+                <button
+                  type="button"
+                  aria-label="Insert task below"
+                  className="absolute left-1/2 bottom-0 z-10 flex size-5 -translate-x-1/2 translate-y-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm hover:text-foreground"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openDraft(pathKey, path, taskIndex + 1);
+                  }}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() =>
+                    setHoverInsert({ pathKey, edgeIndex: taskIndex + 1 })
+                  }
+                >
+                  <Plus className="size-3" aria-hidden />
+                </button>
+              ) : null}
+              <div
+                className="flex min-w-0 items-center gap-2"
+                style={{ paddingLeft: TREE_STEP_PX + depth * 16 }}
+              >
+                <button
+                  type="button"
+                  className="flex size-5 shrink-0 items-center justify-center text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleTaskExpanded(task.id);
+                  }}
+                  aria-expanded={checklistExpanded}
+                  aria-label={checklistExpanded ? "Collapse checklist" : "Expand checklist"}
+                >
+                  <TaskExpandIcon className="size-4" aria-hidden />
+                </button>
+                <span
+                  aria-hidden
+                  className={cn("size-2 shrink-0 rounded-full", COLOR_CLASS_BY_TASK[task.color])}
+                />
+                <InlineEditableText
+                  ref={editingTitle ? titleEditableRef : null}
+                  value={task.title}
+                  editing={editingTitle}
+                  onBeginEdit={() => beginTitleEdit(task)}
+                  onCommit={(next) => commitExistingTitle(task, next)}
+                  onCancel={() => setActiveCell(null)}
+                  onKeyDown={(event, draftTitle) => {
+                    if (event.key !== "Tab") {
+                      return false;
+                    }
+                    event.preventDefault();
+                    titleEditableRef.current?.skipNextBlurCommit();
+                    commitExistingTitle(task, draftTitle, false);
+                    moveActiveCell(task.id, "title", event.shiftKey ? -1 : 1);
+                    return true;
+                  }}
+                  aria-label={`Edit title for ${task.title}`}
+                  className={cn("text-foreground", task.done && "text-muted-foreground line-through")}
+                />
+                {checklistProgress.total > 0 ? (
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground outline-none hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      expandTask(task.id);
+                    }}
+                    aria-label={`Checklist progress ${checklistProgress.done} of ${checklistProgress.total}`}
+                  >
+                    {checklistProgress.done}/{checklistProgress.total}
+                  </button>
+                ) : null}
+                <Link
+                  href={`/tracker/tasks/${task.id}`}
+                  draggable={false}
+                  className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Open task"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <SquareArrowOutUpRight className="size-3.5" aria-hidden />
+                </Link>
+              </div>
+            </TableCell>
+            <TableCell className="px-3 py-2">
+              <Switch
+                size="sm"
+                checked={task.done}
+                onCheckedChange={(checked) => updateTask(task.id, { done: checked })}
+                aria-label={
+                  task.done ? `Mark ${task.title} as not done` : `Mark ${task.title} as done`
+                }
                 onClick={(event) => event.stopPropagation()}
-              >
-                <SquareArrowOutUpRight className="size-3.5" aria-hidden />
-              </Link>
-            </div>
-          </TableCell>
-          <TableCell className="px-3 py-2">
-            <Switch
-              size="sm"
-              checked={task.done}
-              onCheckedChange={(checked) => updateTask(task.id, { done: checked })}
-              aria-label={
-                task.done ? `Mark ${task.title} as not done` : `Mark ${task.title} as done`
-              }
-              onClick={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
-            />
-          </TableCell>
-          <TableCell className="px-3 py-2">
-            <Select
-              items={PRIORITY_SELECT_ITEMS}
-              value={task.priority}
-              onValueChange={(value) => {
-                if (!value || !(PRIORITY_OPTIONS as string[]).includes(value)) {
-                  return;
-                }
-                updateTask(task.id, { priority: value as TaskPriority });
-              }}
-            >
-              <SelectTrigger
-                size="sm"
-                className="w-full max-w-[7.5rem] bg-transparent"
-                aria-label={`Priority for ${task.title}`}
-                data-task-cell={`${task.id}:priority`}
-                onFocus={() => setActiveCell({ rowId: task.id, field: "priority" })}
-                onKeyDown={(event) => {
-                  if (event.key === "Tab") {
-                    event.preventDefault();
-                    moveActiveCell(task.id, "priority", event.shiftKey ? -1 : 1);
+                onPointerDown={(event) => event.stopPropagation()}
+              />
+            </TableCell>
+            <TableCell className="px-3 py-2">
+              <Select
+                items={PRIORITY_SELECT_ITEMS}
+                value={task.priority}
+                onValueChange={(value) => {
+                  if (!value || !(PRIORITY_OPTIONS as string[]).includes(value)) {
+                    return;
                   }
+                  updateTask(task.id, { priority: value as TaskPriority });
                 }}
               >
-                <SelectValue placeholder={PRIORITY_LABELS[task.priority]} />
-              </SelectTrigger>
-              <SelectContent align="start">
-                <SelectGroup>
-                  {PRIORITY_OPTIONS.map((priority) => (
-                    <SelectItem key={priority} value={priority}>
-                      {PRIORITY_LABELS[priority]}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </TableCell>
-          <TableCell className="px-3 py-2">
-            <Input
-              type="date"
-              value={toDateInputValue(task.deadlineAt)}
-              aria-label={`Deadline for ${task.title}`}
-              className="h-8"
-              data-task-cell={`${task.id}:deadline`}
-              onFocus={() => setActiveCell({ rowId: task.id, field: "deadline" })}
-              onChange={(event) => {
-                const nextIso = deadlineFromDateInput(event.target.value, task.deadlineAt);
-                updateTask(task.id, {
-                  deadlineAt: nextIso,
-                  deadlineLabel: nextIso ? formatDeadlineLabel(nextIso) : "No deadline",
-                  customDateFields: {
-                    ...task.customDateFields,
-                    planningDate: nextIso,
-                  },
-                });
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Tab") {
-                  event.preventDefault();
-                  moveActiveCell(task.id, "deadline", event.shiftKey ? -1 : 1);
-                }
-              }}
-            />
-          </TableCell>
-          <TableCell className="px-3 py-2">
-            <Select
-              items={ASSIGNEE_SELECT_ITEMS}
-              value={resolveAssigneeId(task)}
-              onValueChange={(value) => {
-                if (!value) {
-                  return;
-                }
-                if (value === ASSIGNEE_UNASSIGNED) {
+                <SelectTrigger
+                  size="sm"
+                  className="w-full max-w-[7.5rem] bg-transparent"
+                  aria-label={`Priority for ${task.title}`}
+                  data-task-cell={`${task.id}:priority`}
+                  onFocus={() => setActiveCell({ rowId: task.id, field: "priority" })}
+                  onKeyDown={(event) => {
+                    if (event.key === "Tab") {
+                      event.preventDefault();
+                      moveActiveCell(task.id, "priority", event.shiftKey ? -1 : 1);
+                    }
+                  }}
+                >
+                  <SelectValue placeholder={PRIORITY_LABELS[task.priority]} />
+                </SelectTrigger>
+                <SelectContent align="start">
+                  <SelectGroup>
+                    {PRIORITY_OPTIONS.map((priority) => (
+                      <SelectItem key={priority} value={priority}>
+                        {PRIORITY_LABELS[priority]}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </TableCell>
+            <TableCell className="px-3 py-2">
+              <Input
+                type="date"
+                value={toDateInputValue(task.deadlineAt)}
+                aria-label={`Deadline for ${task.title}`}
+                className="h-8"
+                data-task-cell={`${task.id}:deadline`}
+                onFocus={() => setActiveCell({ rowId: task.id, field: "deadline" })}
+                onChange={(event) => {
+                  const nextIso = deadlineFromDateInput(event.target.value, task.deadlineAt);
                   updateTask(task.id, {
-                    assigneeName: "Unassigned",
-                    assigneeAvatarUrl: taskAssigneeAvatarUrl(task.id),
+                    deadlineAt: nextIso,
+                    deadlineLabel: nextIso ? formatDeadlineLabel(nextIso) : "No deadline",
+                    customDateFields: {
+                      ...task.customDateFields,
+                      planningDate: nextIso,
+                    },
                   });
-                  return;
-                }
-                const assignee = DEMO_TASK_ASSIGNEES.find((item) => item.id === value);
-                if (!assignee) {
-                  return;
-                }
-                updateTask(task.id, {
-                  assigneeName: assignee.name,
-                  assigneeAvatarUrl: taskAssigneeAvatarUrl(assignee.id),
-                });
-              }}
-            >
-              <SelectTrigger
-                size="sm"
-                className="w-full bg-transparent"
-                aria-label={`Assignee for ${task.title}`}
-                data-task-cell={`${task.id}:assignee`}
-                onFocus={() => setActiveCell({ rowId: task.id, field: "assignee" })}
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "Tab") {
                     event.preventDefault();
-                    moveActiveCell(task.id, "assignee", event.shiftKey ? -1 : 1);
+                    moveActiveCell(task.id, "deadline", event.shiftKey ? -1 : 1);
                   }
                 }}
+              />
+            </TableCell>
+            <TableCell className="px-3 py-2">
+              <Select
+                items={ASSIGNEE_SELECT_ITEMS}
+                value={resolveAssigneeId(task)}
+                onValueChange={(value) => {
+                  if (!value) {
+                    return;
+                  }
+                  if (value === ASSIGNEE_UNASSIGNED) {
+                    updateTask(task.id, {
+                      assigneeName: "Unassigned",
+                      assigneeAvatarUrl: taskAssigneeAvatarUrl(task.id),
+                    });
+                    return;
+                  }
+                  const assignee = DEMO_TASK_ASSIGNEES.find((item) => item.id === value);
+                  if (!assignee) {
+                    return;
+                  }
+                  updateTask(task.id, {
+                    assigneeName: assignee.name,
+                    assigneeAvatarUrl: taskAssigneeAvatarUrl(assignee.id),
+                  });
+                }}
               >
-                <SelectValue placeholder={task.assigneeName} />
-              </SelectTrigger>
-              <SelectContent align="start">
-                <SelectGroup>
-                  <SelectItem value={ASSIGNEE_UNASSIGNED}>Unassigned</SelectItem>
-                  {DEMO_TASK_ASSIGNEES.map((assignee) => (
-                    <SelectItem key={assignee.id} value={assignee.id}>
-                      {assignee.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </TableCell>
-        </TableRow>
+                <SelectTrigger
+                  size="sm"
+                  className="w-full bg-transparent"
+                  aria-label={`Assignee for ${task.title}`}
+                  data-task-cell={`${task.id}:assignee`}
+                  onFocus={() => setActiveCell({ rowId: task.id, field: "assignee" })}
+                  onKeyDown={(event) => {
+                    if (event.key === "Tab") {
+                      event.preventDefault();
+                      moveActiveCell(task.id, "assignee", event.shiftKey ? -1 : 1);
+                    }
+                  }}
+                >
+                  <SelectValue placeholder={task.assigneeName} />
+                </SelectTrigger>
+                <SelectContent align="start">
+                  <SelectGroup>
+                    <SelectItem value={ASSIGNEE_UNASSIGNED}>Unassigned</SelectItem>
+                    {DEMO_TASK_ASSIGNEES.map((assignee) => (
+                      <SelectItem key={assignee.id} value={assignee.id}>
+                        {assignee.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </TableCell>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem
+              onClick={() => {
+                router.push(`/tracker/tasks/${task.id}`);
+              }}
+            >
+              Open task
+            </ContextMenuItem>
+            <ContextMenuItem onClick={() => updateTask(task.id, { done: !task.done })}>
+              {task.done ? "Mark as not done" : "Mark as done"}
+            </ContextMenuItem>
+            <ContextMenuItem onClick={() => openDraft(pathKey, path, taskIndex + 1)}>
+              Add task below
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              variant="destructive"
+              onClick={() => onTasksChange((prev) => prev.filter((item) => item.id !== task.id))}
+            >
+              Delete
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
         {checklistExpanded ? (
           <TableRow
             className="border-0 hover:bg-transparent"
@@ -727,6 +893,7 @@ export const TasksListView = ({
     const ChevronIcon = collapsed ? ChevronRight : ChevronDown;
     const dropHandlers = pathDropHandlers(node.path, pathKey);
     const taskCount = countNodeTasks(node);
+    const isLeaf = node.children.length === 0;
 
     return (
       <Fragment key={pathKey}>
@@ -738,30 +905,46 @@ export const TasksListView = ({
           {...dropHandlers}
         >
           <TableCell colSpan={5} className="px-3 py-2">
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 text-left text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            <div
+              className="flex w-full items-center gap-2"
               style={{ paddingLeft: 12 + depth * 16 }}
-              onClick={() => togglePathCollapsed(pathKey)}
-              aria-expanded={!collapsed}
-              aria-label={`${collapsed ? "Expand" : "Collapse"} ${node.label}`}
             >
-              <span className="flex size-5 shrink-0 items-center justify-center">
-                <ChevronIcon className="size-4 text-muted-foreground" aria-hidden />
-              </span>
-              <span>{node.label}</span>
-              <span className="text-xs font-normal text-muted-foreground">{taskCount}</span>
-            </button>
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => togglePathCollapsed(pathKey)}
+                aria-expanded={!collapsed}
+                aria-label={`${collapsed ? "Expand" : "Collapse"} ${node.label}`}
+              >
+                <span className="flex size-5 shrink-0 items-center justify-center">
+                  <ChevronIcon className="size-4 text-muted-foreground" aria-hidden />
+                </span>
+                <span className="truncate">{node.label}</span>
+                <span className="text-xs font-normal text-muted-foreground">{taskCount}</span>
+              </button>
+              {isLeaf ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0"
+                  aria-label="Add task"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openDraft(pathKey, node.path, 0);
+                  }}
+                >
+                  <Plus className="size-3.5" aria-hidden />
+                </Button>
+              ) : null}
+            </div>
           </TableCell>
         </TableRow>
 
         {!collapsed ? (
           <>
             {node.children.map((child) => renderGroupNode(child, depth + 1))}
-            {node.tasks.map((task) => renderTaskRow(task, node.path, depth))}
-            {node.children.length === 0
-              ? renderAddRow(node.path, pathKey, node.label, depth)
-              : null}
+            {isLeaf ? renderTaskRowsWithDraft(node.tasks, node.path, pathKey, depth) : null}
           </>
         ) : null}
       </Fragment>
@@ -783,8 +966,21 @@ export const TasksListView = ({
         <TableBody>
           {isFlatMode ? (
             <>
-              {tasks.map((task) => renderTaskRow(task, [], 0))}
-              {renderAddRow([], FLAT_PATH_KEY, "tasks", 0)}
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={5} className="px-3 py-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Add task"
+                    onClick={() => openDraft(FLAT_PATH_KEY, [], 0)}
+                  >
+                    <Plus className="size-3.5" aria-hidden />
+                    Add task
+                  </Button>
+                </TableCell>
+              </TableRow>
+              {renderTaskRowsWithDraft(tasks, [], FLAT_PATH_KEY, 0)}
             </>
           ) : (
             groupTree.map((node) => renderGroupNode(node, 0))

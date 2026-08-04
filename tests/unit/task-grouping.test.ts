@@ -191,6 +191,30 @@ describe("applyGroupPathToTask", () => {
     expect(none.deadlineLabel).toBe("No deadline");
   });
 
+  it("applies this-week on Wednesday and round-trips", () => {
+    const task = asTask({ id: "tw", deadlineAt: "2026-07-01T15:30:00.000Z" });
+    const next = applyGroupPathToTask(
+      task,
+      [{ groupBy: "relativeDeadline", key: "this-week", label: "This week" }],
+      WED,
+    );
+    expect(resolveBucket(next, "relativeDeadline", WED).key).toBe("this-week");
+  });
+
+  it("applies a next-best date when Sunday this-week window is empty", () => {
+    // Sunday Apr 19: tomorrow === week end → no day after tomorrow in this week.
+    // Empty this-week groups stay hidden; path apply still yields a concrete deadline.
+    const SUN = new Date("2026-04-19T09:00:00.000Z");
+    const task = asTask({ id: "sun-tw", deadlineAt: "2026-07-01T15:30:00.000Z" });
+    const next = applyGroupPathToTask(
+      task,
+      [{ groupBy: "relativeDeadline", key: "this-week", label: "This week" }],
+      SUN,
+    );
+    expect(next.deadlineAt).not.toBe("");
+    expect(resolveBucket(next, "relativeDeadline", SUN).key).toBe("next-week");
+  });
+
   it("applies month bucket", () => {
     const task = asTask({ id: "z", deadlineAt: "" });
     const next = applyGroupPathToTask(

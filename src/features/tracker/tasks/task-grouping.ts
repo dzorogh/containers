@@ -311,6 +311,25 @@ const withPreservedTime = (day: Date, previousIso: string) => {
   return next.toISOString();
 };
 
+/** Pick a calendar day that still classifies as `this-week` for `now` (Mon-start week). */
+const dayForThisWeekBucket = (today: Date): Date => {
+  const tomorrow = addDays(today, 1);
+  const thisWeekEndExclusive = addDays(startOfWeekMonday(today), 7);
+  // Prefer first day after tomorrow that is still in the current week
+  const preferred = addDays(tomorrow, 1);
+  if (preferred < thisWeekEndExclusive) {
+    return preferred;
+  }
+  // Empty preferred window (e.g. Sunday when tomorrow === week end): fall back
+  const weekLast = addDays(thisWeekEndExclusive, -1);
+  if (weekLast > tomorrow) {
+    return weekLast;
+  }
+  // Truly empty — no day after tomorrow maps to this-week; caller groups hide empty buckets.
+  // Still return a concrete day for path apply (may not round-trip).
+  return preferred;
+};
+
 export const deadlineForRelativeBucket = (
   key: RelativeDeadlineKey,
   now: Date,
@@ -331,7 +350,7 @@ export const deadlineForRelativeBucket = (
         : key === "tomorrow"
           ? addDays(today, 1)
           : key === "this-week"
-            ? addDays(today, 3)
+            ? dayForThisWeekBucket(today)
             : key === "next-week"
               ? addDays(nextWeekStart, 2)
               : key === "next-month"

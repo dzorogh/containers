@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyGroupPathToTask,
   groupTasks,
+  insertTaskAmongSiblings,
   resolveBucket,
   serializeGroupPath,
   type TodayTaskLike,
@@ -223,5 +224,25 @@ describe("applyGroupPathToTask", () => {
       WED,
     );
     expect(resolveBucket(next, "deadlineMonth", WED).key).toBe("2026-05");
+  });
+});
+
+describe("insertTaskAmongSiblings", () => {
+  it("inserts at index 0 among siblings and preserves non-siblings", () => {
+    const all = [asTask({ id: "a" }), asTask({ id: "x" }), asTask({ id: "b" }), asTask({ id: "y" }), asTask({ id: "c" })];
+    const next = insertTaskAmongSiblings(all, ["a", "b", "c"], asTask({ id: "n" }), 0);
+    expect(next.map((t) => t.id)).toEqual(["n", "a", "x", "b", "y", "c"]);
+  });
+
+  it("inserts below sibling i (index i+1)", () => {
+    const all = [asTask({ id: "a" }), asTask({ id: "b" }), asTask({ id: "c" })];
+    const next = insertTaskAmongSiblings(all, ["a", "b", "c"], asTask({ id: "n" }), 2);
+    expect(next.map((t) => t.id)).toEqual(["a", "b", "n", "c"]);
+  });
+
+  it("appends new task when sibling set is empty", () => {
+    const all = [asTask({ id: "x" })];
+    const next = insertTaskAmongSiblings(all, [], asTask({ id: "n" }), 0);
+    expect(next.map((t) => t.id)).toEqual(["x", "n"]);
   });
 });

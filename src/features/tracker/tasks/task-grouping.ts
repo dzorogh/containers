@@ -444,3 +444,58 @@ export const applyGroupPathToTask = <T extends TodayTask>(
 
   return next;
 };
+
+/**
+ * Insert `newTask` into `allTasks` so that among `siblingIdsInOrder` it sits at `insertIndex`.
+ * Non-sibling tasks keep their relative positions; the whole sibling block is rewritten in order
+ * at the position of the first sibling (or appended if the group is empty).
+ */
+export const insertTaskAmongSiblings = (
+  allTasks: TodayTask[],
+  siblingIdsInOrder: string[],
+  newTask: TodayTask,
+  insertIndex: number,
+): TodayTask[] => {
+  const siblingSet = new Set(siblingIdsInOrder);
+  const nextSiblingIds = [...siblingIdsInOrder];
+  const clamped = Math.max(0, Math.min(insertIndex, nextSiblingIds.length));
+  nextSiblingIds.splice(clamped, 0, newTask.id);
+
+  const byId = new Map<string, TodayTask>();
+  for (const t of allTasks) {
+    byId.set(t.id, t);
+  }
+  byId.set(newTask.id, newTask);
+
+  const result: TodayTask[] = [];
+  let siblingCursor = 0;
+
+  for (const t of allTasks) {
+    if (!siblingSet.has(t.id)) {
+      result.push(t);
+      continue;
+    }
+    // Emit any newly inserted siblings before this original sibling.
+    while (siblingCursor < nextSiblingIds.length && nextSiblingIds[siblingCursor] !== t.id) {
+      const item = byId.get(nextSiblingIds[siblingCursor]);
+      if (item) {
+        result.push(item);
+      }
+      siblingCursor += 1;
+    }
+    if (siblingCursor < nextSiblingIds.length && nextSiblingIds[siblingCursor] === t.id) {
+      result.push(t);
+      siblingCursor += 1;
+    }
+  }
+
+  while (siblingCursor < nextSiblingIds.length) {
+    const item = byId.get(nextSiblingIds[siblingCursor]);
+    if (item) {
+      result.push(item);
+    }
+    siblingCursor += 1;
+  }
+
+  return result;
+};

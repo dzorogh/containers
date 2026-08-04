@@ -60,4 +60,12 @@ describe("resolveBucket relativeDeadline", () => {
     expect(resolveBucket(baseTask({ deadlineAt: "2026-07-01T12:00:00.000Z" }), "relativeDeadline", WED).key).toBe("later");
     expect(resolveBucket(baseTask({ deadlineAt: "" }), "relativeDeadline", WED).key).toBe("no-deadline");
   });
+
+  it("classifies gap days after next week and before next month as later", () => {
+    // WED Apr 15 + 13 days = Apr 28 (after next week, before May)
+    expect(resolveBucket(baseTask({ deadlineAt: atLocalDay(WED, 13) }), "relativeDeadline", WED)).toEqual({
+      key: "later",
+      label: "Later",
+    });
+  });
 });

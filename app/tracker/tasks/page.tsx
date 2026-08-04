@@ -163,7 +163,11 @@ const TrackerTasksPageContent = () => {
             />
 
             {pageState.view === "table" ? (
-              <TasksListView tasks={visibleTasks} />
+              <TasksListView
+                tasks={visibleTasks}
+                onTasksChange={handleVisibleTasksChange}
+                spaceId={pageState.scope.startsWith("space-") ? pageState.scope : "space-holding"}
+              />
             ) : (
               <TasksMonthCalendar tasks={visibleTasks} onTasksChange={handleVisibleTasksChange} />
             )}

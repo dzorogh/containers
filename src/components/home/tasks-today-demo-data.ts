@@ -24,14 +24,19 @@ export type TodayTask = {
   spaceId: string;
 };
 
-const DEMO_ASSIGNEES = [
+export const DEMO_TASK_ASSIGNEES = [
   { id: "anna-petrova", name: "Anna Petrova" },
   { id: "dmitry-sokolov", name: "Dmitry Sokolov" },
   { id: "maria-egorova", name: "Maria Egorova" },
   { id: "pavel-gromov", name: "Pavel Gromov" },
 ] as const;
 
-const assigneeAvatarUrl = (assigneeId: string) => `https://i.pravatar.cc/40?u=task-assignee-${assigneeId}`;
+const DEMO_ASSIGNEES = DEMO_TASK_ASSIGNEES;
+
+export const taskAssigneeAvatarUrl = (assigneeId: string) =>
+  `https://i.pravatar.cc/40?u=task-assignee-${assigneeId}`;
+
+const assigneeAvatarUrl = taskAssigneeAvatarUrl;
 
 const pickAssignee = (taskId: string) => {
   const index = Math.abs(

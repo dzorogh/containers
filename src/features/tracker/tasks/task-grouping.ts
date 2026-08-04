@@ -43,6 +43,95 @@ export type TodayTaskLike = Pick<TodayTask, "stageId" | "assigneeName" | "deadli
 
 export type BucketRef = { key: string; label: string };
 
+export type RelativeDeadlineKey =
+  | "overdue"
+  | "today"
+  | "tomorrow"
+  | "this-week"
+  | "next-week"
+  | "next-month"
+  | "later"
+  | "no-deadline";
+
+const RELATIVE_LABELS: Record<RelativeDeadlineKey, string> = {
+  overdue: "Overdue",
+  today: "Today",
+  tomorrow: "Tomorrow",
+  "this-week": "This week",
+  "next-week": "Next week",
+  "next-month": "Next month",
+  later: "Later",
+  "no-deadline": "No deadline",
+};
+
+const startOfDay = (date: Date): Date => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const addDays = (date: Date, days: number): Date => {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+};
+
+/** Monday-start calendar week (local time). */
+const startOfWeekMonday = (date: Date): Date => {
+  const d = startOfDay(date);
+  const day = d.getDay(); // 0=Sun … 6=Sat
+  const offset = day === 0 ? -6 : 1 - day;
+  return addDays(d, offset);
+};
+
+const relativeBucket = (key: RelativeDeadlineKey): BucketRef => ({
+  key,
+  label: RELATIVE_LABELS[key],
+});
+
+export const resolveRelativeDeadlineBucket = (
+  deadlineAt: string,
+  now: Date,
+): BucketRef => {
+  if (!deadlineAt.trim()) {
+    return relativeBucket("no-deadline");
+  }
+
+  const deadline = new Date(deadlineAt);
+  if (Number.isNaN(deadline.getTime())) {
+    return relativeBucket("no-deadline");
+  }
+
+  const deadlineDay = startOfDay(deadline);
+  const today = startOfDay(now);
+  const tomorrow = addDays(today, 1);
+  const thisWeekEnd = addDays(startOfWeekMonday(today), 7); // exclusive (next Monday)
+  const nextWeekEnd = addDays(thisWeekEnd, 7);
+  const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const monthAfterNextStart = new Date(today.getFullYear(), today.getMonth() + 2, 1);
+
+  if (deadlineDay < today) {
+    return relativeBucket("overdue");
+  }
+  if (deadlineDay.getTime() === today.getTime()) {
+    return relativeBucket("today");
+  }
+  if (deadlineDay.getTime() === tomorrow.getTime()) {
+    return relativeBucket("tomorrow");
+  }
+  // After tomorrow through end of current Mon–Sun week
+  if (deadlineDay < thisWeekEnd) {
+    return relativeBucket("this-week");
+  }
+  if (deadlineDay < nextWeekEnd) {
+    return relativeBucket("next-week");
+  }
+  if (deadlineDay >= nextMonthStart && deadlineDay < monthAfterNextStart) {
+    return relativeBucket("next-month");
+  }
+  return relativeBucket("later");
+};
+
 const resolveStageId = (task: TodayTaskLike): DemoTaskStageId =>
   task.stageId === "questions" ? "questions" : DEFAULT_DEMO_TASK_STAGE_ID;
 
@@ -68,11 +157,11 @@ export const resolveBucket = (
     return { key: assignee.id, label: assignee.name };
   }
 
-  // Temporary stubs so file typechecks until Tasks 2–3 fill them in.
   if (groupBy === "relativeDeadline") {
-    void now;
-    return { key: "no-deadline", label: "No deadline" };
+    return resolveRelativeDeadlineBucket(task.deadlineAt, now);
   }
+
+  // Temporary stubs so file typechecks until Task 3 fills them in.
   if (groupBy === "deadlineMonth") {
     return { key: "no-deadline", label: "No deadline" };
   }

@@ -196,10 +196,12 @@ export const TasksListView = ({
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverPathKey, setDragOverPathKey] = useState<string | null>(null);
   const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(() => new Set());
-
-  useEffect(() => {
+  const groupingLevelsKey = groupingLevels.join("|");
+  const [collapseResetKey, setCollapseResetKey] = useState(groupingLevelsKey);
+  if (collapseResetKey !== groupingLevelsKey) {
+    setCollapseResetKey(groupingLevelsKey);
     setCollapsedPathKeys(new Set());
-  }, [groupingLevels]);
+  }
 
   const toggleTaskExpanded = (taskId: string) => {
     setExpandedTaskIds((prev) => {

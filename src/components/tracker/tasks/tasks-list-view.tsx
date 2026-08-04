@@ -23,6 +23,10 @@ import {
 import { COLOR_CLASS_BY_TASK } from "@/components/tracker/tasks/calendar/calendar-color-map";
 import { formatDeadlineLabel } from "@/components/tracker/tasks/calendar/calendar-utils";
 import { countChecklist } from "@/components/tracker/tasks/checklist-tree";
+import {
+  InlineEditableText,
+  type InlineEditableTextHandle,
+} from "@/components/tracker/tasks/inline-editable-text";
 import { TaskChecklist, TREE_STEP_PX } from "@/components/tracker/tasks/task-checklist";
 import { Input } from "@/components/ui/input";
 import {
@@ -147,7 +151,6 @@ const buildCreatedTask = (
 
 export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewProps) => {
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
-  const [titleDraft, setTitleDraft] = useState("");
   const [collapsedStageIds, setCollapsedStageIds] = useState<Set<DemoTaskStageId>>(
     () => new Set(),
   );
@@ -183,10 +186,9 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
     });
   };
 
-  const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const titleEditableRef = useRef<InlineEditableTextHandle | null>(null);
   const addTitleInputRefs = useRef<Partial<Record<DemoTaskStageId, HTMLInputElement | null>>>({});
   const skipAddBlurCommitRef = useRef(false);
-  const skipTitleBlurCommitRef = useRef(false);
 
   const tasksByStage = DEMO_TASK_STAGES.map((stage) => ({
     stage,
@@ -248,7 +250,6 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
   const commitExistingTitle = (task: TodayTask, rawValue: string, clearActive = true) => {
     const trimmed = rawValue.trim();
     if (!trimmed) {
-      setTitleDraft(task.title);
       if (clearActive) {
         setActiveCell(null);
       }
@@ -297,10 +298,6 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
         return;
       }
       const nextField = delta === 1 ? EDITABLE_FIELDS[0] : EDITABLE_FIELDS[EDITABLE_FIELDS.length - 1];
-      if (nextField === "title") {
-        const task = tasks.find((item) => item.id === nextRowId);
-        setTitleDraft(task?.title ?? "");
-      }
       const next: ActiveCell = { rowId: nextRowId, field: nextField };
       setActiveCell(next);
       setFocusRequest(next);
@@ -331,16 +328,11 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
     }
 
     const next: ActiveCell = { rowId: nextRowId, field: EDITABLE_FIELDS[nextFieldIndex] };
-    if (next.field === "title") {
-      const task = tasks.find((item) => item.id === next.rowId);
-      setTitleDraft(task?.title ?? "");
-    }
     setActiveCell(next);
     setFocusRequest(next);
   };
 
   const beginTitleEdit = (task: TodayTask) => {
-    setTitleDraft(task.title);
     setActiveCell({ rowId: task.id, field: "title" });
     setFocusRequest({ rowId: task.id, field: "title" });
   };
@@ -350,11 +342,14 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
       return;
     }
     if (focusRequest.field === "title") {
-      const node = isAddRowId(focusRequest.rowId)
-        ? addTitleInputRefs.current[stageIdFromAddRowId(focusRequest.rowId)]
-        : titleInputRef.current;
-      node?.focus();
-      node?.select();
+      if (isAddRowId(focusRequest.rowId)) {
+        const node = addTitleInputRefs.current[stageIdFromAddRowId(focusRequest.rowId)];
+        node?.focus();
+        node?.select();
+      } else {
+        titleEditableRef.current?.focus();
+        titleEditableRef.current?.select();
+      }
       setFocusRequest(null);
       return;
     }
@@ -363,26 +358,6 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
     node?.focus();
     setFocusRequest(null);
   }, [focusRequest, tasks.length]);
-
-  const handleTitleKeyDown = (event: KeyboardEvent<HTMLInputElement>, task: TodayTask) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      commitExistingTitle(task, titleDraft);
-      return;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      setTitleDraft(task.title);
-      setActiveCell(null);
-      return;
-    }
-    if (event.key === "Tab") {
-      event.preventDefault();
-      skipTitleBlurCommitRef.current = true;
-      commitExistingTitle(task, titleDraft, false);
-      moveActiveCell(task.id, "title", event.shiftKey ? -1 : 1);
-    }
-  };
 
   const handleAddTitleKeyDown = (
     event: KeyboardEvent<HTMLInputElement>,
@@ -515,31 +490,26 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                                   COLOR_CLASS_BY_TASK[task.color],
                                 )}
                               />
-                              {editingTitle ? (
-                                <Input
-                                  ref={titleInputRef}
-                                  value={titleDraft}
-                                  onChange={(event) => setTitleDraft(event.target.value)}
-                                  onBlur={() => {
-                                    if (skipTitleBlurCommitRef.current) {
-                                      skipTitleBlurCommitRef.current = false;
-                                      return;
-                                    }
-                                    commitExistingTitle(task, titleDraft);
-                                  }}
-                                  onKeyDown={(event) => handleTitleKeyDown(event, task)}
-                                  aria-label={`Edit title for ${task.title}`}
-                                  className="h-8"
-                                />
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="min-w-0 truncate text-left text-sm font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                                  onClick={() => beginTitleEdit(task)}
-                                >
-                                  {task.title}
-                                </button>
-                              )}
+                              <InlineEditableText
+                                ref={editingTitle ? titleEditableRef : null}
+                                value={task.title}
+                                editing={editingTitle}
+                                onBeginEdit={() => beginTitleEdit(task)}
+                                onCommit={(next) => commitExistingTitle(task, next)}
+                                onCancel={() => setActiveCell(null)}
+                                onKeyDown={(event, draft) => {
+                                  if (event.key !== "Tab") {
+                                    return false;
+                                  }
+                                  event.preventDefault();
+                                  titleEditableRef.current?.skipNextBlurCommit();
+                                  commitExistingTitle(task, draft, false);
+                                  moveActiveCell(task.id, "title", event.shiftKey ? -1 : 1);
+                                  return true;
+                                }}
+                                aria-label={`Edit title for ${task.title}`}
+                                className="text-foreground"
+                              />
                               {checklistProgress.total > 0 ? (
                                 <button
                                   type="button"

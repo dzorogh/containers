@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import type { ChecklistItem } from "@/components/home/tasks-today-demo-data";
 import {
   addChecklistItem,
-  findChecklistItem,
   indentChecklistItem,
   insertChecklistSiblingAfter,
   moveChecklistItem,
@@ -15,9 +14,12 @@ import {
   toggleChecklistItem,
   type ChecklistDropPosition,
 } from "@/components/tracker/tasks/checklist-tree";
+import {
+  InlineEditableText,
+  type InlineEditableTextHandle,
+} from "@/components/tracker/tasks/inline-editable-text";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 type TaskChecklistProps = {
@@ -47,15 +49,13 @@ const collectParentIds = (nodes: ChecklistItem[]): Set<string> => {
 export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => collectParentIds(items));
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{
     id: string;
     position: ChecklistDropPosition;
   } | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const skipBlurCommitRef = useRef(false);
+  const editableRef = useRef<InlineEditableTextHandle | null>(null);
 
   const onDragOverItem = (event: DragEvent, id: string) => {
     event.preventDefault();
@@ -89,14 +89,12 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
       return;
     }
     setEditingId(focusId);
-    const node = findChecklistItem(items, focusId);
-    setDraft(node?.title ?? "");
     requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
+      editableRef.current?.focus();
+      editableRef.current?.select();
     });
     setFocusId(null);
-  }, [focusId, items]);
+  }, [focusId]);
 
   const toggleCollapsed = (id: string) => {
     setCollapsedIds((prev) => {
@@ -112,7 +110,6 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
 
   const beginEdit = (item: ChecklistItem) => {
     setEditingId(item.id);
-    setDraft(item.title);
   };
 
   const commitEdit = (item: ChecklistItem, raw: string, clear = true) => {
@@ -120,8 +117,6 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
     if (!trimmed) {
       if (item.title === "") {
         onChange(removeChecklistItem(items, item.id));
-      } else {
-        setDraft(item.title);
       }
       if (clear) {
         setEditingId(null);
@@ -153,56 +148,6 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
     setFocusId(id);
   };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>, item: ChecklistItem) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      skipBlurCommitRef.current = true;
-      const committedTitle = draft.trim();
-      if (!committedTitle) {
-        setDraft(item.title);
-        setEditingId(null);
-        return;
-      }
-      const id = newId();
-      let next = items;
-      if (committedTitle !== item.title) {
-        next = renameChecklistItem(items, item.id, committedTitle);
-      }
-      next = insertChecklistSiblingAfter(next, item.id, "", id);
-      onChange(next);
-      setEditingId(null);
-      setFocusId(id);
-      return;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      setDraft(item.title);
-      setEditingId(null);
-      return;
-    }
-    if (event.key === "Tab") {
-      event.preventDefault();
-      skipBlurCommitRef.current = true;
-      const committedTitle = draft.trim() || item.title;
-      let next =
-        committedTitle !== item.title
-          ? renameChecklistItem(items, item.id, committedTitle)
-          : items;
-      next = event.shiftKey
-        ? outdentChecklistItem(next, item.id)
-        : indentChecklistItem(next, item.id);
-      onChange(next);
-      setFocusId(item.id);
-      return;
-    }
-    if ((event.key === "Backspace" || event.key === "Delete") && draft === "") {
-      event.preventDefault();
-      skipBlurCommitRef.current = true;
-      onChange(removeChecklistItem(items, item.id));
-      setEditingId(null);
-    }
-  };
-
   const renderItems = (nodes: ChecklistItem[], depth: number) =>
     nodes.map((item) => {
       const hasChildren = item.children.length > 0;
@@ -219,14 +164,14 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
               !editing && "cursor-grab active:cursor-grabbing",
               draggingId === item.id && "opacity-50",
               dropTarget?.id === item.id &&
-                dropTarget.position === "into" &&
-                "bg-primary/5 ring-2 ring-inset ring-primary/40",
+              dropTarget.position === "into" &&
+              "bg-primary/5 ring-2 ring-inset ring-primary/40",
               dropTarget?.id === item.id &&
-                dropTarget.position === "before" &&
-                "border-t-2 border-t-primary",
+              dropTarget.position === "before" &&
+              "border-t-2 border-t-primary",
               dropTarget?.id === item.id &&
-                dropTarget.position === "after" &&
-                "shadow-[inset_0_-2px_0_0_var(--color-primary)]",
+              dropTarget.position === "after" &&
+              "shadow-[inset_0_-2px_0_0_var(--color-primary)]",
             )}
             onDragStart={(event) => {
               if (editing) {
@@ -273,35 +218,64 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
                 aria-label={`Mark ${item.title || "item"} done`}
                 className="cursor-pointer"
               />
-              {editing ? (
-                <Input
-                  ref={inputRef}
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onBlur={() => {
-                    if (skipBlurCommitRef.current) {
-                      skipBlurCommitRef.current = false;
-                      return;
+              <InlineEditableText
+                ref={editing ? editableRef : null}
+                value={item.title}
+                editing={editing}
+                placeholder="Untitled"
+                onBeginEdit={() => beginEdit(item)}
+                onCommit={(next) => commitEdit(item, next)}
+                onCancel={() => setEditingId(null)}
+                onKeyDown={(event, draft) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    editableRef.current?.skipNextBlurCommit();
+                    const committedTitle = draft.trim();
+                    if (!committedTitle) {
+                      setEditingId(null);
+                      return true;
                     }
-                    commitEdit(item, draft);
-                  }}
-                  onKeyDown={(event) => handleKeyDown(event, item)}
-                  onMouseDown={(event) => event.stopPropagation()}
-                  aria-label="Edit checklist item"
-                  className="h-8 flex-1"
-                />
-              ) : (
-                <button
-                  type="button"
-                  className={cn(
-                    "min-w-0 flex-1 truncate text-left text-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring",
-                    item.done && "font-normal text-muted-foreground line-through",
-                  )}
-                  onClick={() => beginEdit(item)}
-                >
-                  {item.title || "Untitled"}
-                </button>
-              )}
+                    const id = newId();
+                    let next = items;
+                    if (committedTitle !== item.title) {
+                      next = renameChecklistItem(items, item.id, committedTitle);
+                    }
+                    next = insertChecklistSiblingAfter(next, item.id, "", id);
+                    onChange(next);
+                    setEditingId(null);
+                    setFocusId(id);
+                    return true;
+                  }
+                  if (event.key === "Tab") {
+                    event.preventDefault();
+                    editableRef.current?.skipNextBlurCommit();
+                    const committedTitle = draft.trim() || item.title;
+                    let next =
+                      committedTitle !== item.title
+                        ? renameChecklistItem(items, item.id, committedTitle)
+                        : items;
+                    next = event.shiftKey
+                      ? outdentChecklistItem(next, item.id)
+                      : indentChecklistItem(next, item.id);
+                    onChange(next);
+                    setFocusId(item.id);
+                    return true;
+                  }
+                  if ((event.key === "Backspace" || event.key === "Delete") && draft === "") {
+                    event.preventDefault();
+                    editableRef.current?.skipNextBlurCommit();
+                    onChange(removeChecklistItem(items, item.id));
+                    setEditingId(null);
+                    return true;
+                  }
+                  return false;
+                }}
+                aria-label="Edit checklist item"
+                className={cn(
+                  "flex-1",
+                  item.done && !editing && "font-normal text-muted-foreground line-through",
+                )}
+              />
               <Button
                 type="button"
                 variant="ghost"

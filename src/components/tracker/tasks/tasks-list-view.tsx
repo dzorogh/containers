@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type DragEvent,
   type KeyboardEvent,
   type SetStateAction,
 } from "react";
@@ -154,6 +155,8 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
     tasks: "",
   });
   const [focusRequest, setFocusRequest] = useState<ActiveCell | null>(null);
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverStageId, setDragOverStageId] = useState<DemoTaskStageId | null>(null);
 
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const addTitleInputRefs = useRef<Partial<Record<DemoTaskStageId, HTMLInputElement | null>>>({});
@@ -182,6 +185,35 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
       }
       return next;
     });
+  };
+
+  const handleDropToStage = (targetStageId: DemoTaskStageId) => {
+    if (!draggedTaskId) {
+      return;
+    }
+    onTasksChange((prev) => {
+      const dragged = prev.find((task) => task.id === draggedTaskId);
+      if (!dragged || resolveTaskStageId(dragged) === targetStageId) {
+        return prev;
+      }
+      const without = prev.filter((task) => task.id !== draggedTaskId);
+      const moved = { ...dragged, stageId: targetStageId };
+      // Append after the last task that belongs to target stage (stable relative order of others).
+      const lastTargetIndex = without.reduce(
+        (acc, task, index) => (resolveTaskStageId(task) === targetStageId ? index : acc),
+        -1,
+      );
+      if (lastTargetIndex === -1) {
+        return [...without, moved];
+      }
+      return [
+        ...without.slice(0, lastTargetIndex + 1),
+        moved,
+        ...without.slice(lastTargetIndex + 1),
+      ];
+    });
+    setDragOverStageId(null);
+    setDraggedTaskId(null);
   };
 
   const toggleSelected = (taskId: string, checked: boolean) => {
@@ -382,10 +414,30 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
             const collapsed = collapsedStageIds.has(stage.id);
             const addRowId = addRowIdForStage(stage.id);
             const ChevronIcon = collapsed ? ChevronRight : ChevronDown;
+            const stageDropHandlers = {
+              onDragOver: (event: DragEvent) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                setDragOverStageId(stage.id);
+              },
+              onDragLeave: () => {
+                setDragOverStageId((current) => (current === stage.id ? null : current));
+              },
+              onDrop: (event: DragEvent) => {
+                event.preventDefault();
+                handleDropToStage(stage.id);
+              },
+            };
 
             return (
               <Fragment key={stage.id}>
-                <TableRow className="bg-muted/40 hover:bg-muted/50">
+                <TableRow
+                  className={cn(
+                    "bg-muted/40 hover:bg-muted/50",
+                    dragOverStageId === stage.id && "ring-2 ring-inset ring-primary/40",
+                  )}
+                  {...stageDropHandlers}
+                >
                   <TableCell colSpan={5} className="px-3 py-2">
                     <button
                       type="button"
@@ -409,7 +461,22 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                     const editingTitle = activeCell?.rowId === task.id && activeCell.field === "title";
 
                     return (
-                      <TableRow key={task.id} data-state={selected ? "selected" : undefined}>
+                      <TableRow
+                        key={task.id}
+                        draggable
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData("text/plain", task.id);
+                          event.dataTransfer.effectAllowed = "move";
+                          setDraggedTaskId(task.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedTaskId(null);
+                          setDragOverStageId(null);
+                        }}
+                        className={cn(draggedTaskId === task.id && "opacity-50")}
+                        data-state={selected ? "selected" : undefined}
+                        {...stageDropHandlers}
+                      >
                         <TableCell className="px-3 py-2">
                           <Checkbox
                             checked={selected}
@@ -571,7 +638,7 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                   })}
 
                 {!collapsed && (
-                  <TableRow className="hover:bg-muted/40">
+                  <TableRow className="hover:bg-muted/40" {...stageDropHandlers}>
                     <TableCell className="px-3 py-2" />
                     <TableCell className="px-3 py-2" colSpan={1}>
                       <Input

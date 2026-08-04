@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -41,6 +41,7 @@ import { DEFAULT_TENANT_ID, DEMO_TENANTS, type DemoTenant } from "@/lib/demo-ten
 import { PULSE_SUBNAV_ITEMS } from "@/features/pulse/pulse-nav";
 import { PulseHomeAsideContent } from "@/features/pulse/pulse-home-aside-content";
 import { TRACKER_SUBNAV_ITEMS } from "@/features/tracker/tracker-nav";
+import { TrackerAsideContent } from "@/features/tracker/tracker-aside-content";
 import { CRM_SUBNAV_ITEMS } from "@/features/crm/crm-nav";
 import { LEARNING_SUBNAV_ITEMS } from "@/features/learning/learning-nav";
 import { LIBRARY_SUBNAV_ITEMS } from "@/features/library/library-nav";
@@ -216,6 +217,14 @@ const RailFlyoutContent = ({ match, onNavigate }: RailFlyoutContentProps) => {
 
   if (match === "/pulse") {
     return <PulseHomeAsideContent onItemClick={onNavigate} />;
+  }
+
+  if (match === "/tracker") {
+    return (
+      <Suspense fallback={<ModuleSubnav items={TRACKER_SUBNAV_ITEMS} navAriaLabel="Tracker sections" onItemClick={onNavigate} />}>
+        <TrackerAsideContent onItemClick={onNavigate} />
+      </Suspense>
+    );
   }
 
   const entry = MOBILE_ASIDE_ENTRIES.find((item) => item.match === match);
@@ -875,6 +884,24 @@ export const NavRail = () => {
       return (
         <MobileAsideSection title="Pulse">
           <PulseHomeAsideContent onItemClick={handleCloseMobileNav} />
+        </MobileAsideSection>
+      );
+    }
+
+    if (matches("/tracker")) {
+      return (
+        <MobileAsideSection title="Tracker">
+          <Suspense
+            fallback={
+              <ModuleSubnav
+                items={TRACKER_SUBNAV_ITEMS}
+                navAriaLabel="Tracker sections"
+                onItemClick={handleCloseMobileNav}
+              />
+            }
+          >
+            <TrackerAsideContent onItemClick={handleCloseMobileNav} />
+          </Suspense>
         </MobileAsideSection>
       );
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { ChevronLeft, ChevronRight, Plus, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import type { TaskPriority, TodayTask } from "@/components/home/tasks-today-demo-data";
@@ -54,7 +54,8 @@ const monthFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 type TasksMonthCalendarProps = {
-  initialTasks: TodayTask[];
+  tasks: CalendarTask[];
+  onTasksChange: Dispatch<SetStateAction<CalendarTask[]>>;
 };
 
 const getInitialAnchorMonthDate = (tasks: TodayTask[]) => {
@@ -72,9 +73,8 @@ const getInitialAnchorMonthDate = (tasks: TodayTask[]) => {
   return new Date(firstTaskDate.getFullYear(), firstTaskDate.getMonth(), 1);
 };
 
-export const TasksMonthCalendar = ({ initialTasks }: TasksMonthCalendarProps) => {
-  const [tasks, setTasks] = useState<CalendarTask[]>(initialTasks);
-  const [anchorMonthDate, setAnchorMonthDate] = useState(() => getInitialAnchorMonthDate(initialTasks));
+export const TasksMonthCalendar = ({ tasks, onTasksChange }: TasksMonthCalendarProps) => {
+  const [anchorMonthDate, setAnchorMonthDate] = useState(() => getInitialAnchorMonthDate(tasks));
   const [dateProperty, setDateProperty] = useState<CalendarDateProperty>("deadline");
   const [customDateFieldId, setCustomDateFieldId] = useState(CUSTOM_DATE_FIELD_OPTIONS[0].id);
   const [firstDayOfWeek, setFirstDayOfWeek] = useState<CalendarFirstDayOfWeek>("monday");
@@ -173,7 +173,7 @@ export const TasksMonthCalendar = ({ initialTasks }: TasksMonthCalendarProps) =>
       return;
     }
 
-    setTasks((prevTasks) =>
+    onTasksChange((prevTasks) =>
       prevTasks.map((task) => {
         if (task.id !== draggedTaskId) {
           return task;
@@ -219,7 +219,7 @@ export const TasksMonthCalendar = ({ initialTasks }: TasksMonthCalendarProps) =>
       return;
     }
 
-    setTasks((prevTasks) =>
+    onTasksChange((prevTasks) =>
       prevTasks.map((currentTask) => {
         if (currentTask.id !== task.id) {
           return currentTask;
@@ -291,9 +291,12 @@ export const TasksMonthCalendar = ({ initialTasks }: TasksMonthCalendarProps) =>
       customDateFields: {
         planningDate: deadlineAt,
       },
+      assigneeName: "Unassigned",
+      assigneeAvatarUrl: `https://i.pravatar.cc/40?u=task-assignee-${taskId}`,
+      spaceId: "space-holding",
     };
 
-    setTasks((prevTasks) => [...prevTasks, nextTask]);
+    onTasksChange((prevTasks) => [...prevTasks, nextTask]);
     closeQuickCreate();
   };
 

@@ -19,6 +19,38 @@ export type TodayTask = {
   projectName: string;
   comments: number;
   href: string;
+  assigneeName: string;
+  assigneeAvatarUrl: string;
+  spaceId: string;
+};
+
+const DEMO_ASSIGNEES = [
+  { id: "anna-petrova", name: "Anna Petrova" },
+  { id: "dmitry-sokolov", name: "Dmitry Sokolov" },
+  { id: "maria-egorova", name: "Maria Egorova" },
+  { id: "pavel-gromov", name: "Pavel Gromov" },
+] as const;
+
+const assigneeAvatarUrl = (assigneeId: string) => `https://i.pravatar.cc/40?u=task-assignee-${assigneeId}`;
+
+const pickAssignee = (taskId: string) => {
+  const index = Math.abs(
+    Array.from(taskId).reduce((hash, char) => hash + char.charCodeAt(0), 0),
+  ) % DEMO_ASSIGNEES.length;
+  return DEMO_ASSIGNEES[index];
+};
+
+const inferSpaceId = (projectName: string): string => {
+  if (projectName.includes("IT ·") || projectName.startsWith("IT ")) {
+    return "space-it";
+  }
+  if (projectName.includes("QA")) {
+    return "space-qa";
+  }
+  if (projectName.includes("HR ·") || projectName.includes("Agile ·")) {
+    return "space-management";
+  }
+  return "space-holding";
 };
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
@@ -60,7 +92,20 @@ const formatDeadlineLabel = (isoDate: string, now: Date) => {
  * Фиксированная точка времени для demo-данных.
  * Нужна, чтобы SSR/CSR генерировали одинаковый HTML и не ломали hydration.
  */
-const DEMO_REFERENCE_NOW = new Date("2026-04-19T09:00:00.000Z");
+export const DEMO_REFERENCE_NOW = new Date("2026-04-19T09:00:00.000Z");
+
+export const isTaskDueOnDemoToday = (task: TodayTask) => {
+  const deadline = new Date(task.deadlineAt);
+  if (Number.isNaN(deadline.getTime())) {
+    return false;
+  }
+
+  return (
+    deadline.getFullYear() === DEMO_REFERENCE_NOW.getFullYear() &&
+    deadline.getMonth() === DEMO_REFERENCE_NOW.getMonth() &&
+    deadline.getDate() === DEMO_REFERENCE_NOW.getDate()
+  );
+};
 
 const createTask = (config: {
   id: string;
@@ -76,6 +121,9 @@ const createTask = (config: {
   createdHour: number;
   createdMinute: number;
   customPlanningOffsetDays?: number;
+  spaceId?: string;
+  assigneeName?: string;
+  assigneeId?: string;
 }) => {
   const deadlineAt = buildDateTime(
     DEMO_REFERENCE_NOW,
@@ -95,6 +143,9 @@ const createTask = (config: {
     config.deadlineHour,
     config.deadlineMinute,
   );
+  const assignee = config.assigneeId
+    ? (DEMO_ASSIGNEES.find((item) => item.id === config.assigneeId) ?? pickAssignee(config.id))
+    : pickAssignee(config.id);
 
   return {
     id: config.id,
@@ -110,6 +161,9 @@ const createTask = (config: {
     },
     deadlineLabel: formatDeadlineLabel(deadlineAt, DEMO_REFERENCE_NOW),
     href: `/tracker/tasks?task=${config.id}`,
+    assigneeName: config.assigneeName ?? assignee.name,
+    assigneeAvatarUrl: assigneeAvatarUrl(config.assigneeId ?? assignee.id),
+    spaceId: config.spaceId ?? inferSpaceId(config.projectName),
   } satisfies TodayTask;
 };
 

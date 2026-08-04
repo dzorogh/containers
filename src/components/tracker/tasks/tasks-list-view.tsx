@@ -23,8 +23,7 @@ import {
 import { COLOR_CLASS_BY_TASK } from "@/components/tracker/tasks/calendar/calendar-color-map";
 import { formatDeadlineLabel } from "@/components/tracker/tasks/calendar/calendar-utils";
 import { countChecklist } from "@/components/tracker/tasks/checklist-tree";
-import { TaskChecklist } from "@/components/tracker/tasks/task-checklist";
-import { Checkbox } from "@/components/ui/checkbox";
+import { TaskChecklist, TREE_STEP_PX } from "@/components/tracker/tasks/task-checklist";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -147,7 +146,6 @@ const buildCreatedTask = (
 };
 
 export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewProps) => {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
   const [titleDraft, setTitleDraft] = useState("");
   const [collapsedStageIds, setCollapsedStageIds] = useState<Set<DemoTaskStageId>>(
@@ -241,18 +239,6 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
     });
     setDragOverStageId(null);
     setDraggedTaskId(null);
-  };
-
-  const toggleSelected = (taskId: string, checked: boolean) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (checked) {
-        next.add(taskId);
-      } else {
-        next.delete(taskId);
-      }
-      return next;
-    });
   };
 
   const updateTask = (taskId: string, patch: Partial<TodayTask>) => {
@@ -429,7 +415,6 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="w-10 px-3" />
             <TableHead className="px-3 text-xs">Title</TableHead>
             <TableHead className="w-28 px-3 text-xs">Priority</TableHead>
             <TableHead className="w-36 px-3 text-xs">Deadline</TableHead>
@@ -462,7 +447,7 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                   )}
                   {...stageDropHandlers}
                 >
-                  <TableCell colSpan={5} className="px-3 py-2">
+                  <TableCell colSpan={4} className="px-3 py-2">
                     <button
                       type="button"
                       className="flex w-full items-center gap-2 text-left text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -470,7 +455,9 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                       aria-expanded={!collapsed}
                       aria-label={`${collapsed ? "Expand" : "Collapse"} ${stage.name}`}
                     >
-                      <ChevronIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="flex size-5 shrink-0 items-center justify-center">
+                        <ChevronIcon className="size-4 text-muted-foreground" aria-hidden />
+                      </span>
                       <span>{stage.name}</span>
                       <span className="text-xs font-normal text-muted-foreground">
                         {stageTasks.length}
@@ -481,7 +468,6 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
 
                 {!collapsed &&
                   stageTasks.map((task) => {
-                    const selected = selectedIds.has(task.id);
                     const editingTitle = activeCell?.rowId === task.id && activeCell.field === "title";
                     const checklistExpanded = expandedTaskIds.has(task.id);
                     const checklistProgress = countChecklist(task.checklist ?? []);
@@ -501,18 +487,13 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                             setDragOverStageId(null);
                           }}
                           className={cn(draggedTaskId === task.id && "opacity-50")}
-                          data-state={selected ? "selected" : undefined}
                           {...stageDropHandlers}
                         >
-                          <TableCell className="px-3 py-2">
-                            <Checkbox
-                              checked={selected}
-                              onCheckedChange={(value) => toggleSelected(task.id, value === true)}
-                              aria-label={`Select task ${task.title}`}
-                            />
-                          </TableCell>
                           <TableCell className="max-w-0 min-w-[12rem] px-3 py-2">
-                            <div className="flex min-w-0 items-center gap-2">
+                            <div
+                              className="flex min-w-0 items-center gap-2"
+                              style={{ paddingLeft: TREE_STEP_PX }}
+                            >
                               <button
                                 type="button"
                                 className="flex size-5 shrink-0 items-center justify-center text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -699,7 +680,7 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                             className="border-0 hover:bg-transparent"
                             onDragStart={(event) => event.preventDefault()}
                           >
-                            <TableCell colSpan={5} className="p-0">
+                            <TableCell colSpan={4} className="p-0">
                               <TaskChecklist
                                 items={task.checklist ?? []}
                                 onChange={(checklist) => updateTask(task.id, { checklist })}
@@ -713,29 +694,30 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
 
                 {!collapsed && (
                   <TableRow className="hover:bg-muted/40" {...stageDropHandlers}>
-                    <TableCell className="px-3 py-2" />
                     <TableCell className="px-3 py-2" colSpan={1}>
-                      <Input
-                        ref={(node) => {
-                          addTitleInputRefs.current[stage.id] = node;
-                        }}
-                        value={addTitles[stage.id]}
-                        onChange={(event) =>
-                          setAddTitles((prev) => ({ ...prev, [stage.id]: event.target.value }))
-                        }
-                        onFocus={() => setActiveCell({ rowId: addRowId, field: "title" })}
-                        onBlur={() => {
-                          if (skipAddBlurCommitRef.current) {
-                            skipAddBlurCommitRef.current = false;
-                            return;
+                      <div style={{ paddingLeft: TREE_STEP_PX * 2 }}>
+                        <Input
+                          ref={(node) => {
+                            addTitleInputRefs.current[stage.id] = node;
+                          }}
+                          value={addTitles[stage.id]}
+                          onChange={(event) =>
+                            setAddTitles((prev) => ({ ...prev, [stage.id]: event.target.value }))
                           }
-                          commitAddRow(stage.id);
-                        }}
-                        onKeyDown={(event) => handleAddTitleKeyDown(event, stage.id)}
-                        placeholder="New task"
-                        aria-label={`New task title in ${stage.name}`}
-                        className="h-8 border-dashed"
-                      />
+                          onFocus={() => setActiveCell({ rowId: addRowId, field: "title" })}
+                          onBlur={() => {
+                            if (skipAddBlurCommitRef.current) {
+                              skipAddBlurCommitRef.current = false;
+                              return;
+                            }
+                            commitAddRow(stage.id);
+                          }}
+                          onKeyDown={(event) => handleAddTitleKeyDown(event, stage.id)}
+                          placeholder="New task"
+                          aria-label={`New task title in ${stage.name}`}
+                          className="h-8 border-dashed"
+                        />
+                      </div>
                     </TableCell>
                     <TableCell className="px-3 py-2 text-xs text-muted-foreground">Medium</TableCell>
                     <TableCell className="px-3 py-2 text-xs text-muted-foreground">Today</TableCell>

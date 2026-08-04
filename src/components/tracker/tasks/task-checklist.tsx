@@ -25,6 +25,9 @@ type TaskChecklistProps = {
   onChange: (next: ChecklistItem[]) => void;
 };
 
+/** Shared tree indent step so stage → task → checklist chevrons form a ladder. */
+export const TREE_STEP_PX = 20;
+
 const newId = () => `cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
@@ -197,7 +200,7 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
         <div key={item.id}>
           <div
             className={cn(
-              "group flex items-center gap-2 border-b border-border px-3 py-2 transition-colors hover:bg-muted/50",
+              "group flex items-center gap-2 border-b border-border py-2 pr-3 transition-colors hover:bg-muted/50",
               draggingId === item.id && "opacity-50",
               dropTarget?.id === item.id &&
                 dropTarget.position === "into" &&
@@ -215,10 +218,10 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
               setDropTarget((current) => (current?.id === item.id ? null : current));
             }}
           >
-            {/* Align under task title: checkbox col (~40px) + expand chevron (~20px) + gap */}
+            {/* Matches table cell px-3 (12px): stage@0, task@1×step, item@(depth+2)×step */}
             <div
               className="flex min-w-0 flex-1 items-center gap-2"
-              style={{ paddingLeft: 40 + depth * 16 }}
+              style={{ paddingLeft: 12 + TREE_STEP_PX * (depth + 2) }}
             >
               <button
                 type="button"
@@ -230,7 +233,7 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
                 aria-label={collapsed ? "Expand item" : "Collapse item"}
                 tabIndex={hasChildren ? 0 : -1}
               >
-                <ChevronIcon className="size-3.5" aria-hidden />
+                <ChevronIcon className="size-4" aria-hidden />
               </button>
               <Checkbox
                 checked={item.done}
@@ -306,11 +309,15 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
       {items.length > 0 ? renderItems(items, 0) : null}
       <button
         type="button"
-        className="flex w-full items-center border-b border-border px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/40"
+        className="flex w-full items-center border-b border-border py-2 pr-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/40"
         onClick={handleAddRoot}
       >
-        <span className="min-w-0 flex-1 truncate" style={{ paddingLeft: 40 }}>
-          Add item
+        <span
+          className="flex min-w-0 flex-1 items-center gap-2"
+          style={{ paddingLeft: 12 + TREE_STEP_PX * 2 }}
+        >
+          <span className="size-5 shrink-0" aria-hidden />
+          <span className="truncate">Add item</span>
         </span>
       </button>
     </div>

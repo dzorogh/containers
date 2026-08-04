@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  groupTasks,
   resolveBucket,
+  serializeGroupPath,
   type TodayTaskLike,
 } from "@/features/tracker/tasks/task-grouping";
-import { DEMO_REFERENCE_NOW } from "@/components/home/tasks-today-demo-data";
+import {
+  DEMO_REFERENCE_NOW,
+  type TodayTask,
+} from "@/components/home/tasks-today-demo-data";
 
 const baseTask = (patch: Partial<TodayTaskLike>): TodayTaskLike => ({
   stageId: "tasks",
@@ -13,6 +18,27 @@ const baseTask = (patch: Partial<TodayTaskLike>): TodayTaskLike => ({
 });
 
 const WED = new Date("2026-04-15T09:00:00.000Z"); // Wednesday
+
+const asTask = (patch: Partial<TodayTask> & Pick<TodayTask, "id">): TodayTask =>
+  ({
+    href: `/tracker/tasks/${patch.id}`,
+    title: patch.id,
+    projectName: "P",
+    priority: "medium",
+    comments: 0,
+    color: "blue",
+    deadlineAt: "",
+    deadlineLabel: "No deadline",
+    createdAt: WED.toISOString(),
+    customDateFields: {},
+    assigneeName: "Unassigned",
+    assigneeAvatarUrl: "",
+    spaceId: "space-it",
+    stageId: "tasks",
+    done: false,
+    checklist: [],
+    ...patch,
+  }) as TodayTask;
 
 const atLocalDay = (base: Date, dayOffset: number, hour = 12) => {
   const d = new Date(base);
@@ -87,5 +113,47 @@ describe("resolveBucket deadlineMonth / deadlineWeek", () => {
     expect(week.label.startsWith("Week ")).toBe(true);
     expect(week.key.startsWith("week-")).toBe(true);
     expect(resolveBucket(baseTask({ deadlineAt: "" }), "deadlineWeek", WED).key).toBe("no-deadline");
+  });
+});
+
+describe("groupTasks", () => {
+  it("returns empty array levels as no nodes (caller renders flat)", () => {
+    const tasks = [asTask({ id: "a" })];
+    expect(groupTasks(tasks, [], WED)).toEqual([]);
+  });
+
+  it("groups one level and hides empty buckets", () => {
+    const tasks = [
+      asTask({ id: "q", stageId: "questions" }),
+      asTask({ id: "t", stageId: "tasks" }),
+    ];
+    const tree = groupTasks(tasks, ["stage"], WED);
+    expect(tree.map((n) => n.key)).toEqual(["questions", "tasks"]);
+    expect(tree[0].tasks.map((t) => t.id)).toEqual(["q"]);
+    expect(tree[0].children).toEqual([]);
+  });
+
+  it("nests stage → assignee", () => {
+    const tasks = [
+      asTask({ id: "1", stageId: "tasks", assigneeName: "Anna Petrova" }),
+      asTask({ id: "2", stageId: "tasks", assigneeName: "Dmitry Sokolov" }),
+      asTask({ id: "3", stageId: "questions", assigneeName: "Anna Petrova" }),
+    ];
+    const tree = groupTasks(tasks, ["stage", "assignee"], WED);
+    const tasksStage = tree.find((n) => n.key === "tasks");
+    expect(tasksStage?.children.map((c) => c.key).sort()).toEqual(["anna-petrova", "dmitry-sokolov"]);
+    expect(tasksStage?.tasks).toEqual([]);
+    expect(tasksStage?.children.find((c) => c.key === "anna-petrova")?.tasks.map((t) => t.id)).toEqual(["1"]);
+  });
+});
+
+describe("serializeGroupPath", () => {
+  it("joins groupBy:key segments", () => {
+    expect(
+      serializeGroupPath([
+        { groupBy: "stage", key: "tasks", label: "Tasks" },
+        { groupBy: "assignee", key: "anna-petrova", label: "Anna Petrova" },
+      ]),
+    ).toBe("stage:tasks/assignee:anna-petrova");
   });
 });

@@ -214,3 +214,88 @@ export const resolveBucket = (
 
   return { key: "no-deadline", label: "No deadline" };
 };
+
+export const serializeGroupPath = (path: GroupPathSegment[]) =>
+  path.map((segment) => `${segment.groupBy}:${segment.key}`).join("/");
+
+const bucketSortKey = (groupBy: TaskGroupBy, key: string): string | number => {
+  if (groupBy === "stage") {
+    return DEMO_TASK_STAGES.find((s) => s.id === key)?.order ?? 99;
+  }
+  if (groupBy === "relativeDeadline") {
+    const order = [
+      "overdue",
+      "today",
+      "tomorrow",
+      "this-week",
+      "next-week",
+      "next-month",
+      "later",
+      "no-deadline",
+    ];
+    return order.indexOf(key);
+  }
+  if (groupBy === "deadlineMonth" || groupBy === "deadlineWeek") {
+    return key === "no-deadline" ? "9999-99" : key;
+  }
+  return key;
+};
+
+const buildLevel = (
+  tasks: TodayTask[],
+  levels: TaskGroupBy[],
+  depth: number,
+  parentPath: GroupPathSegment[],
+  now: Date,
+): TaskGroupNode[] => {
+  const groupBy = levels[depth];
+  if (!groupBy) {
+    return [];
+  }
+
+  const buckets = new Map<string, { label: string; tasks: TodayTask[] }>();
+  for (const task of tasks) {
+    const bucket = resolveBucket(task, groupBy, now);
+    const entry = buckets.get(bucket.key) ?? { label: bucket.label, tasks: [] };
+    entry.tasks.push(task);
+    buckets.set(bucket.key, entry);
+  }
+
+  const isLeaf = depth === levels.length - 1;
+  const nodes: TaskGroupNode[] = [];
+
+  for (const [key, entry] of buckets) {
+    const segment: GroupPathSegment = { groupBy, key, label: entry.label };
+    const path = [...parentPath, segment];
+    const children = isLeaf ? [] : buildLevel(entry.tasks, levels, depth + 1, path, now);
+    nodes.push({
+      key,
+      label: entry.label,
+      groupBy,
+      path,
+      tasks: isLeaf ? entry.tasks : [],
+      children,
+    });
+  }
+
+  nodes.sort((a, b) => {
+    const ak = bucketSortKey(groupBy, a.key);
+    const bk = bucketSortKey(groupBy, b.key);
+    if (ak < bk) return -1;
+    if (ak > bk) return 1;
+    return a.label.localeCompare(b.label);
+  });
+
+  return nodes;
+};
+
+export const groupTasks = (
+  tasks: TodayTask[],
+  levels: TaskGroupBy[],
+  now: Date,
+): TaskGroupNode[] => {
+  if (levels.length === 0) {
+    return [];
+  }
+  return buildLevel(tasks, levels, 0, [], now);
+};

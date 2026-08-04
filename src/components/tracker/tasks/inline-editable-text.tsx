@@ -6,6 +6,7 @@ import {
   useImperativeHandle,
   useRef,
   type KeyboardEvent,
+  type MouseEvent,
 } from "react";
 import { cn } from "@/lib/utils";
 
@@ -32,16 +33,52 @@ type InlineEditableTextProps = {
   "aria-label"?: string;
 };
 
-const selectAllContents = (node: HTMLElement) => {
+const readPlainText = (node: HTMLElement | null) =>
+  (node?.innerText ?? node?.textContent ?? "").replace(/\u00a0/g, " ");
+
+const caretOffsetFromPoint = (root: HTMLElement, x: number, y: number): number | null => {
+  let range: Range | null = null;
+  if (typeof document.caretRangeFromPoint === "function") {
+    range = document.caretRangeFromPoint(x, y);
+  } else {
+    const doc = document as Document & {
+      caretPositionFromPoint?: (px: number, py: number) => {
+        offsetNode: Node;
+        offset: number;
+      } | null;
+    };
+    const pos = doc.caretPositionFromPoint?.(x, y);
+    if (pos) {
+      range = document.createRange();
+      range.setStart(pos.offsetNode, pos.offset);
+      range.collapse(true);
+    }
+  }
+  if (!range || !root.contains(range.startContainer)) {
+    return null;
+  }
+  const prefix = range.cloneRange();
+  prefix.selectNodeContents(root);
+  prefix.setEnd(range.startContainer, range.startOffset);
+  return prefix.toString().length;
+};
+
+const setCaretOffset = (node: HTMLElement, offset: number) => {
+  const text = node.textContent ?? "";
+  const clamped = Math.max(0, Math.min(offset, text.length));
+  const textNode = node.firstChild;
   const range = document.createRange();
-  range.selectNodeContents(node);
+  if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+    range.setStart(textNode, clamped);
+    range.collapse(true);
+  } else {
+    range.selectNodeContents(node);
+    range.collapse(false);
+  }
   const selection = window.getSelection();
   selection?.removeAllRanges();
   selection?.addRange(range);
 };
-
-const readPlainText = (node: HTMLElement | null) =>
-  (node?.innerText ?? node?.textContent ?? "").replace(/\u00a0/g, " ");
 
 export const InlineEditableText = forwardRef<InlineEditableTextHandle, InlineEditableTextProps>(
   (
@@ -61,6 +98,7 @@ export const InlineEditableText = forwardRef<InlineEditableTextHandle, InlineEdi
     const nodeRef = useRef<HTMLSpanElement | null>(null);
     const skipBlurCommitRef = useRef(false);
     const valueRef = useRef(value);
+    const pendingCaretOffsetRef = useRef<number | null>(null);
     valueRef.current = value;
 
     useImperativeHandle(ref, () => ({
@@ -68,9 +106,11 @@ export const InlineEditableText = forwardRef<InlineEditableTextHandle, InlineEdi
         nodeRef.current?.focus();
       },
       select: () => {
-        if (nodeRef.current) {
-          selectAllContents(nodeRef.current);
+        const node = nodeRef.current;
+        if (!node) {
+          return;
         }
+        setCaretOffset(node, (node.textContent ?? "").length);
       },
       getValue: () => readPlainText(nodeRef.current),
       skipNextBlurCommit: () => {
@@ -84,8 +124,10 @@ export const InlineEditableText = forwardRef<InlineEditableTextHandle, InlineEdi
         return;
       }
       node.textContent = valueRef.current;
-      node.focus();
-      selectAllContents(node);
+      node.focus({ preventScroll: true });
+      const offset = pendingCaretOffsetRef.current;
+      pendingCaretOffsetRef.current = null;
+      setCaretOffset(node, offset ?? (node.textContent ?? "").length);
     }, [editing]);
 
     const handleBlur = () => {
@@ -103,6 +145,7 @@ export const InlineEditableText = forwardRef<InlineEditableTextHandle, InlineEdi
       if (!editing) {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
+          pendingCaretOffsetRef.current = (valueRef.current || "").length;
           onBeginEdit();
         }
         return;
@@ -129,6 +172,18 @@ export const InlineEditableText = forwardRef<InlineEditableTextHandle, InlineEdi
       }
     };
 
+    const handleMouseDown = (event: MouseEvent<HTMLSpanElement>) => {
+      if (editing) {
+        event.stopPropagation();
+        return;
+      }
+      const node = nodeRef.current;
+      if (!node) {
+        return;
+      }
+      pendingCaretOffsetRef.current = caretOffsetFromPoint(node, event.clientX, event.clientY);
+    };
+
     return (
       <span
         ref={nodeRef}
@@ -140,10 +195,8 @@ export const InlineEditableText = forwardRef<InlineEditableTextHandle, InlineEdi
         aria-multiline={false}
         data-placeholder={placeholder}
         className={cn(
-          "min-w-0 truncate text-left text-sm font-medium outline-none",
-          editing
-            ? "cursor-text rounded-sm ring-2 ring-ring"
-            : "cursor-pointer hover:underline focus-visible:ring-2 focus-visible:ring-ring",
+          "min-w-0 truncate text-left text-sm font-medium outline-none focus:outline-none focus-visible:outline-none",
+          editing ? "cursor-text" : "cursor-pointer hover:underline",
           className,
         )}
         onClick={() => {
@@ -153,11 +206,7 @@ export const InlineEditableText = forwardRef<InlineEditableTextHandle, InlineEdi
         }}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        onMouseDown={(event) => {
-          if (editing) {
-            event.stopPropagation();
-          }
-        }}
+        onMouseDown={handleMouseDown}
       >
         {editing ? null : value || placeholder || ""}
       </span>

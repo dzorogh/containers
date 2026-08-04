@@ -44,6 +44,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   applyGroupPathToTask,
   groupTasks,
+  resolveBucket,
   serializeGroupPath,
   type GroupPathSegment,
   type TaskGroupBy,
@@ -261,6 +262,13 @@ export const TasksListView = ({
     onTasksChange((prev) => {
       const dragged = prev.find((task) => task.id === draggedTaskId);
       if (!dragged) {
+        return prev;
+      }
+      const currentPath = groupingLevels.map((groupBy) => {
+        const bucket = resolveBucket(dragged, groupBy, DEMO_REFERENCE_NOW);
+        return { groupBy, key: bucket.key, label: bucket.label };
+      });
+      if (serializeGroupPath(currentPath) === serializeGroupPath(path)) {
         return prev;
       }
       const moved = applyGroupPathToTask(dragged, path, DEMO_REFERENCE_NOW);

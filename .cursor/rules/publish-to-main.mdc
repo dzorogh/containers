@@ -1,0 +1,15 @@
+---
+description: Always merge and publish completed work directly to main
+alwaysApply: true
+---
+
+# Publish to main
+
+When feature work on this repo is done (or the user asks to publish / ship / merge):
+
+1. Merge into local `main` (fast-forward preferred; otherwise merge commit).
+2. Push `main` to `origin` (`git push -u origin main` if needed).
+3. Do **not** open a PR unless the user explicitly asks for one.
+4. Do **not** leave work only on a feature branch after the user asked to publish.
+
+Still follow git safety: no force-push to `main`, no `--no-verify`, no amending others' commits.

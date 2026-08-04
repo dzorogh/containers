@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
-import { ChevronDown, ChevronRight, GripVertical, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import type { ChecklistItem } from "@/components/home/tasks-today-demo-data";
 import {
   addChecklistItem,
@@ -199,8 +199,10 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
       return (
         <div key={item.id}>
           <div
+            draggable={!editing}
             className={cn(
               "group flex items-center gap-2 border-b border-border py-2 pr-3 transition-colors hover:bg-muted/50",
+              !editing && "cursor-grab active:cursor-grabbing",
               draggingId === item.id && "opacity-50",
               dropTarget?.id === item.id &&
                 dropTarget.position === "into" &&
@@ -212,6 +214,20 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
                 dropTarget.position === "after" &&
                 "shadow-[inset_0_-2px_0_0_var(--color-primary)]",
             )}
+            onDragStart={(event) => {
+              if (editing) {
+                event.preventDefault();
+                return;
+              }
+              event.stopPropagation();
+              event.dataTransfer.setData("text/plain", item.id);
+              event.dataTransfer.effectAllowed = "move";
+              setDraggingId(item.id);
+            }}
+            onDragEnd={() => {
+              setDraggingId(null);
+              setDropTarget(null);
+            }}
             onDragOver={(event) => onDragOverItem(event, item.id)}
             onDrop={(event) => onDropItem(event, item.id)}
             onDragLeave={() => {
@@ -230,6 +246,7 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
                   !hasChildren && "invisible",
                 )}
                 onClick={() => toggleCollapsed(item.id)}
+                onMouseDown={(event) => event.stopPropagation()}
                 aria-label={collapsed ? "Expand item" : "Collapse item"}
                 tabIndex={hasChildren ? 0 : -1}
               >
@@ -238,6 +255,7 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
               <Checkbox
                 checked={item.done}
                 onCheckedChange={() => onChange(toggleChecklistItem(items, item.id))}
+                onMouseDown={(event) => event.stopPropagation()}
                 aria-label={`Mark ${item.title || "item"} done`}
               />
               {editing ? (
@@ -253,6 +271,7 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
                     commitEdit(item, draft);
                   }}
                   onKeyDown={(event) => handleKeyDown(event, item)}
+                  onMouseDown={(event) => event.stopPropagation()}
                   aria-label="Edit checklist item"
                   className="h-8 flex-1"
                 />
@@ -274,29 +293,11 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
                 size="icon-xs"
                 className="opacity-0 group-hover:opacity-100"
                 onClick={() => handleAddChild(item.id)}
+                onMouseDown={(event) => event.stopPropagation()}
                 aria-label="Add child item"
               >
                 <Plus className="size-3.5" />
               </Button>
-              <span
-                draggable
-                onDragStart={(event) => {
-                  event.stopPropagation();
-                  event.dataTransfer.setData("text/plain", item.id);
-                  event.dataTransfer.effectAllowed = "move";
-                  setDraggingId(item.id);
-                }}
-                onDragEnd={() => {
-                  setDraggingId(null);
-                  setDropTarget(null);
-                }}
-                className="flex size-5 cursor-grab items-center justify-center text-muted-foreground opacity-0 group-hover:opacity-100"
-                data-checklist-drag-handle
-                role="button"
-                aria-label="Drag checklist item"
-              >
-                <GripVertical className="size-3.5" />
-              </span>
             </div>
           </div>
           {hasChildren && !collapsed ? renderItems(item.children, depth + 1) : null}

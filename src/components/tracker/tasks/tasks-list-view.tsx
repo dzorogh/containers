@@ -418,10 +418,7 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
               onDragOver: (event: DragEvent) => {
                 event.preventDefault();
                 event.dataTransfer.dropEffect = "move";
-                setDragOverStageId(stage.id);
-              },
-              onDragLeave: () => {
-                setDragOverStageId((current) => (current === stage.id ? null : current));
+                setDragOverStageId((current) => (current === stage.id ? current : stage.id));
               },
               onDrop: (event: DragEvent) => {
                 event.preventDefault();

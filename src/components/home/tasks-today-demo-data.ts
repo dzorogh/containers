@@ -120,10 +120,10 @@ const formatDeadlineLabel = (isoDate: string, now: Date) => {
 };
 
 /**
- * Фиксированная точка времени для demo-данных.
- * Нужна, чтобы SSR/CSR генерировали одинаковый HTML и не ломали hydration.
+ * Fixed demo clock (Wednesday) so SSR/CSR match and relative deadline buckets
+ * (Today / Tomorrow / This week / Next week) are all non-empty with seed offsets.
  */
-export const DEMO_REFERENCE_NOW = new Date("2026-04-19T09:00:00.000Z");
+export const DEMO_REFERENCE_NOW = new Date("2026-04-15T09:00:00.000Z");
 
 export const isTaskDueOnDemoToday = (task: TodayTask) => {
   const deadline = new Date(task.deadlineAt);
@@ -590,7 +590,8 @@ export const ALL_TASKS: TodayTask[] = [
     priority: "low",
     comments: 0,
     color: "blue",
-    deadlineOffsetDays: 10,
+    // Wed+3 → Fri: lands in "This week" under DEMO_REFERENCE_NOW (Mon-start week)
+    deadlineOffsetDays: 3,
     deadlineHour: 15,
     deadlineMinute: 0,
     createdOffsetDays: -9,

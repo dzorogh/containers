@@ -517,7 +517,7 @@ export const TasksListView = ({
     const dropHandlers = draft.path.length > 0 ? pathDropHandlers(draft.path, draft.pathKey) : {};
     return (
       <TableRow key={DRAFT_ROW_ID} className="hover:bg-muted/40" {...dropHandlers}>
-        <TableCell className="px-3 py-2" colSpan={1}>
+        <TableCell className="px-3 py-1" colSpan={1}>
           <div style={{ paddingLeft: TREE_STEP_PX * 2 + depth * 16 }}>
             <Input
               ref={draftInputRef}
@@ -536,14 +536,14 @@ export const TasksListView = ({
               onKeyDown={handleDraftTitleKeyDown}
               placeholder="New task"
               aria-label="New task title"
-              className="h-8 border-dashed"
+              className="h-7 border-dashed"
             />
           </div>
         </TableCell>
-        <TableCell className="px-3 py-2" />
-        <TableCell className="px-3 py-2 text-xs text-muted-foreground">Medium</TableCell>
-        <TableCell className="px-3 py-2 text-xs text-muted-foreground">Today</TableCell>
-        <TableCell className="px-3 py-2 text-xs text-muted-foreground">Unassigned</TableCell>
+        <TableCell className="px-3 py-1" />
+        <TableCell className="px-3 py-1 text-xs text-muted-foreground">Medium</TableCell>
+        <TableCell className="px-3 py-1 text-xs text-muted-foreground">Today</TableCell>
+        <TableCell className="px-3 py-1 text-xs text-muted-foreground">Unassigned</TableCell>
       </TableRow>
     );
   };
@@ -618,7 +618,7 @@ export const TasksListView = ({
               />
             }
           >
-            <TableCell className="relative max-w-0 min-w-[12rem] px-3 py-2">
+            <TableCell className="relative max-w-0 min-w-[12rem] px-3 py-1">
               {showTopInsert ? (
                 <button
                   type="button"
@@ -709,7 +709,7 @@ export const TasksListView = ({
                 <Link
                   href={`/tracker/tasks/${task.id}`}
                   draggable={false}
-                  className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label="Open task"
                   onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => event.stopPropagation()}
@@ -718,7 +718,7 @@ export const TasksListView = ({
                 </Link>
               </div>
             </TableCell>
-            <TableCell className="px-3 py-2">
+            <TableCell className="px-3 py-1">
               <Switch
                 size="sm"
                 checked={task.done}
@@ -730,7 +730,7 @@ export const TasksListView = ({
                 onPointerDown={(event) => event.stopPropagation()}
               />
             </TableCell>
-            <TableCell className="px-3 py-2">
+            <TableCell className="px-3 py-1">
               <Select
                 items={PRIORITY_SELECT_ITEMS}
                 value={task.priority}
@@ -767,12 +767,12 @@ export const TasksListView = ({
                 </SelectContent>
               </Select>
             </TableCell>
-            <TableCell className="px-3 py-2">
+            <TableCell className="px-3 py-1">
               <Input
                 type="date"
                 value={toDateInputValue(task.deadlineAt)}
                 aria-label={`Deadline for ${task.title}`}
-                className="h-8"
+                className="h-7"
                 data-task-cell={`${task.id}:deadline`}
                 onFocus={() => setActiveCell({ rowId: task.id, field: "deadline" })}
                 onChange={(event) => {
@@ -794,7 +794,7 @@ export const TasksListView = ({
                 }}
               />
             </TableCell>
-            <TableCell className="px-3 py-2">
+            <TableCell className="px-3 py-1">
               <Select
                 items={ASSIGNEE_SELECT_ITEMS}
                 value={resolveAssigneeId(task)}
@@ -904,7 +904,7 @@ export const TasksListView = ({
           )}
           {...dropHandlers}
         >
-          <TableCell colSpan={5} className="px-3 py-2">
+          <TableCell colSpan={5} className="px-3 py-1">
             <div
               className="flex w-full items-center gap-2"
               style={{ paddingLeft: 12 + depth * 16 }}
@@ -956,11 +956,11 @@ export const TasksListView = ({
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="px-3 text-xs">Title</TableHead>
-            <TableHead className="w-16 px-3 text-xs">Done</TableHead>
-            <TableHead className="w-28 px-3 text-xs">Priority</TableHead>
-            <TableHead className="w-36 px-3 text-xs">Deadline</TableHead>
-            <TableHead className="w-44 px-3 text-xs">Assignee</TableHead>
+            <TableHead className="h-8 px-3 text-xs">Title</TableHead>
+            <TableHead className="h-8 w-16 px-3 text-xs">Done</TableHead>
+            <TableHead className="h-8 w-28 px-3 text-xs">Priority</TableHead>
+            <TableHead className="h-8 w-36 px-3 text-xs">Deadline</TableHead>
+            <TableHead className="h-8 w-44 px-3 text-xs">Assignee</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

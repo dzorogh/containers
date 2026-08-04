@@ -160,7 +160,7 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
           <div
             draggable={!editing}
             className={cn(
-              "group flex items-center gap-2 border-b border-border py-2 pr-3 transition-colors hover:bg-muted/50",
+              "group flex items-center gap-2 border-b border-border py-1 pr-3 transition-colors hover:bg-muted/50",
               !editing && "cursor-grab active:cursor-grabbing",
               draggingId === item.id && "opacity-50",
               dropTarget?.id === item.id &&
@@ -299,7 +299,7 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
       {items.length > 0 ? renderItems(items, 0) : null}
       <button
         type="button"
-        className="flex w-full items-center border-b border-border py-2 pr-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/40"
+        className="flex w-full items-center border-b border-border py-1 pr-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/40"
         onClick={handleAddRoot}
       >
         <span

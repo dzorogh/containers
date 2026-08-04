@@ -2,9 +2,11 @@ import {
   DEFAULT_DEMO_TASK_STAGE_ID,
   DEMO_TASK_ASSIGNEES,
   DEMO_TASK_STAGES,
+  taskAssigneeAvatarUrl,
   type DemoTaskStageId,
   type TodayTask,
 } from "@/components/home/tasks-today-demo-data";
+import { formatDeadlineLabel } from "@/components/tracker/tasks/calendar/calendar-utils";
 
 export type TaskGroupBy =
   | "stage"
@@ -298,4 +300,128 @@ export const groupTasks = (
     return [];
   }
   return buildLevel(tasks, levels, 0, [], now);
+};
+
+const withPreservedTime = (day: Date, previousIso: string) => {
+  const prev = new Date(previousIso);
+  const hours = Number.isNaN(prev.getTime()) ? 12 : prev.getHours();
+  const minutes = Number.isNaN(prev.getTime()) ? 0 : prev.getMinutes();
+  const next = new Date(day);
+  next.setHours(hours, minutes, 0, 0);
+  return next.toISOString();
+};
+
+export const deadlineForRelativeBucket = (
+  key: RelativeDeadlineKey,
+  now: Date,
+  previousIso: string,
+): string => {
+  if (key === "no-deadline") return "";
+  const today = startOfDay(now);
+  const thisWeekStart = startOfWeekMonday(today);
+  const nextWeekStart = addDays(thisWeekStart, 7);
+  const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const laterDay = new Date(today.getFullYear(), today.getMonth() + 2, 15);
+
+  const day =
+    key === "overdue"
+      ? addDays(today, -1)
+      : key === "today"
+        ? today
+        : key === "tomorrow"
+          ? addDays(today, 1)
+          : key === "this-week"
+            ? addDays(today, 3)
+            : key === "next-week"
+              ? addDays(nextWeekStart, 2)
+              : key === "next-month"
+                ? addDays(nextMonthStart, 14)
+                : laterDay;
+
+  return withPreservedTime(day, previousIso || now.toISOString());
+};
+
+export const deadlineForMonthBucket = (key: string, previousIso: string, now: Date): string => {
+  if (key === "no-deadline") return "";
+  const [yearStr, monthStr] = key.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  if (!year || !month) return previousIso;
+  const day = new Date(year, month - 1, 15);
+  return withPreservedTime(day, previousIso || now.toISOString());
+};
+
+export const deadlineForWeekBucket = (key: string, previousIso: string, now: Date): string => {
+  if (key === "no-deadline") return "";
+  // key: week-{weekYear}-{week}
+  const match = /^week-(\d+)-(\d+)$/.exec(key);
+  if (!match) return previousIso;
+  const weekYear = Number(match[1]);
+  const week = Number(match[2]);
+  // Approximate: ISO week 1 Monday
+  const jan4 = new Date(weekYear, 0, 4);
+  const week1Monday = startOfWeekMonday(jan4);
+  const monday = addDays(week1Monday, (week - 1) * 7);
+  return withPreservedTime(addDays(monday, 2), previousIso || now.toISOString()); // Wednesday of that week
+};
+
+export const applyGroupPathToTask = <T extends TodayTask>(
+  task: T,
+  path: GroupPathSegment[],
+  now: Date,
+): T => {
+  let next: T = { ...task };
+
+  for (const segment of path) {
+    if (segment.groupBy === "stage") {
+      next = {
+        ...next,
+        stageId: segment.key === "questions" ? "questions" : DEFAULT_DEMO_TASK_STAGE_ID,
+      };
+    } else if (segment.groupBy === "assignee") {
+      if (segment.key === "unassigned") {
+        next = {
+          ...next,
+          assigneeName: "Unassigned",
+          assigneeAvatarUrl: taskAssigneeAvatarUrl(next.id),
+        };
+      } else {
+        const assignee = DEMO_TASK_ASSIGNEES.find((item) => item.id === segment.key);
+        next = {
+          ...next,
+          assigneeName: assignee?.name ?? "Unassigned",
+          assigneeAvatarUrl: assignee
+            ? taskAssigneeAvatarUrl(assignee.id)
+            : taskAssigneeAvatarUrl(next.id),
+        };
+      }
+    } else if (segment.groupBy === "relativeDeadline") {
+      const deadlineAt = deadlineForRelativeBucket(
+        segment.key as RelativeDeadlineKey,
+        now,
+        next.deadlineAt,
+      );
+      next = {
+        ...next,
+        deadlineAt,
+        deadlineLabel: deadlineAt ? formatDeadlineLabel(deadlineAt, now) : "No deadline",
+      };
+    } else if (segment.groupBy === "deadlineMonth") {
+      const deadlineAt = deadlineForMonthBucket(segment.key, next.deadlineAt, now);
+      next = {
+        ...next,
+        deadlineAt,
+        deadlineLabel: deadlineAt ? formatDeadlineLabel(deadlineAt, now) : "No deadline",
+      };
+    } else if (segment.groupBy === "deadlineWeek") {
+      const deadlineAt = deadlineForWeekBucket(segment.key, next.deadlineAt, now);
+      next = {
+        ...next,
+        deadlineAt,
+        deadlineLabel: deadlineAt ? formatDeadlineLabel(deadlineAt, now) : "No deadline",
+      };
+    }
+  }
+
+  return next;
 };

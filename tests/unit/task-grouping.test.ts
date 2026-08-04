@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyGroupPathToTask,
   groupTasks,
   resolveBucket,
   serializeGroupPath,
@@ -155,5 +156,48 @@ describe("serializeGroupPath", () => {
         { groupBy: "assignee", key: "anna-petrova", label: "Anna Petrova" },
       ]),
     ).toBe("stage:tasks/assignee:anna-petrova");
+  });
+});
+
+describe("applyGroupPathToTask", () => {
+  it("applies stage and assignee", () => {
+    const task = asTask({ id: "x", stageId: "questions", assigneeName: "Unassigned" });
+    const next = applyGroupPathToTask(
+      task,
+      [
+        { groupBy: "stage", key: "tasks", label: "Tasks" },
+        { groupBy: "assignee", key: "anna-petrova", label: "Anna Petrova" },
+      ],
+      WED,
+    );
+    expect(next.stageId).toBe("tasks");
+    expect(next.assigneeName).toBe("Anna Petrova");
+  });
+
+  it("applies relative today and no deadline", () => {
+    const task = asTask({ id: "y", deadlineAt: "2026-07-01T15:30:00.000Z" });
+    const today = applyGroupPathToTask(
+      task,
+      [{ groupBy: "relativeDeadline", key: "today", label: "Today" }],
+      WED,
+    );
+    expect(resolveBucket(today, "relativeDeadline", WED).key).toBe("today");
+    const none = applyGroupPathToTask(
+      task,
+      [{ groupBy: "relativeDeadline", key: "no-deadline", label: "No deadline" }],
+      WED,
+    );
+    expect(none.deadlineAt).toBe("");
+    expect(none.deadlineLabel).toBe("No deadline");
+  });
+
+  it("applies month bucket", () => {
+    const task = asTask({ id: "z", deadlineAt: "" });
+    const next = applyGroupPathToTask(
+      task,
+      [{ groupBy: "deadlineMonth", key: "2026-05", label: "May 2026" }],
+      WED,
+    );
+    expect(resolveBucket(next, "deadlineMonth", WED).key).toBe("2026-05");
   });
 });

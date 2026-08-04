@@ -346,10 +346,8 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
         const node = addTitleInputRefs.current[stageIdFromAddRowId(focusRequest.rowId)];
         node?.focus();
         node?.select();
-      } else {
-        titleEditableRef.current?.focus();
-        titleEditableRef.current?.select();
       }
+      // Task title caret/focus is owned by InlineEditableText when `editing` becomes true.
       setFocusRequest(null);
       return;
     }

@@ -2,8 +2,8 @@
 
 import {
   forwardRef,
-  useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
   type KeyboardEvent,
   type MouseEvent,
@@ -118,16 +118,21 @@ export const InlineEditableText = forwardRef<InlineEditableTextHandle, InlineEdi
       },
     }));
 
-    useEffect(() => {
+    useLayoutEffect(() => {
       const node = nodeRef.current;
       if (!editing || !node) {
         return;
       }
       node.textContent = valueRef.current;
-      node.focus({ preventScroll: true });
-      const offset = pendingCaretOffsetRef.current;
+      const offset = pendingCaretOffsetRef.current ?? (node.textContent ?? "").length;
       pendingCaretOffsetRef.current = null;
-      setCaretOffset(node, offset ?? (node.textContent ?? "").length);
+      node.focus({ preventScroll: true });
+      setCaretOffset(node, offset);
+      // Parent focus() in useEffect can move the caret — restore after that.
+      const frame = requestAnimationFrame(() => {
+        setCaretOffset(node, offset);
+      });
+      return () => cancelAnimationFrame(frame);
     }, [editing]);
 
     const handleBlur = () => {
@@ -181,7 +186,16 @@ export const InlineEditableText = forwardRef<InlineEditableTextHandle, InlineEdi
       if (!node) {
         return;
       }
-      pendingCaretOffsetRef.current = caretOffsetFromPoint(node, event.clientX, event.clientY);
+      const fromPoint = caretOffsetFromPoint(node, event.clientX, event.clientY);
+      if (fromPoint !== null) {
+        pendingCaretOffsetRef.current = fromPoint;
+        return;
+      }
+      // Fallback: approximate offset by horizontal position within the text box.
+      const rect = node.getBoundingClientRect();
+      const ratio = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 1;
+      const text = node.textContent ?? "";
+      pendingCaretOffsetRef.current = Math.max(0, Math.min(text.length, Math.round(ratio * text.length)));
     };
 
     return (

@@ -90,8 +90,8 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
     }
     setEditingId(focusId);
     requestAnimationFrame(() => {
+      // Caret stays at end for newly created items (no click offset).
       editableRef.current?.focus();
-      editableRef.current?.select();
     });
     setFocusId(null);
   }, [focusId]);

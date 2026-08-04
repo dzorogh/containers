@@ -25,10 +25,14 @@ import { cn } from "@/lib/utils";
 type TaskChecklistProps = {
   items: ChecklistItem[];
   onChange: (next: ChecklistItem[]) => void;
+  /** Tree level of root checklist items (task is level−1). Matches group/task ladder. */
+  baseLevel?: number;
 };
 
-/** Shared tree indent step so stage → task → checklist chevrons form a ladder. */
+/** Shared tree indent step so group → task → checklist chevrons form a ladder. */
 export const TREE_STEP_PX = 20;
+/** Table title cell `px-3` — checklist rows use `p-0`, so recreate that inset. */
+const CELL_PAD_X_PX = 12;
 
 const newId = () => `cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -46,7 +50,7 @@ const collectParentIds = (nodes: ChecklistItem[]): Set<string> => {
   return ids;
 };
 
-export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
+export const TaskChecklist = ({ items, onChange, baseLevel = 2 }: TaskChecklistProps) => {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => collectParentIds(items));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -193,10 +197,10 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
               setDropTarget((current) => (current?.id === item.id ? null : current));
             }}
           >
-            {/* Matches table cell px-3 (12px): stage@0, task@1×step, item@(depth+2)×step */}
+            {/* Cell pad + level×step: group@N, task@N+1, item@baseLevel+depth */}
             <div
               className="flex min-w-0 flex-1 items-center gap-2"
-              style={{ paddingLeft: 12 + TREE_STEP_PX * (depth + 2) }}
+              style={{ paddingLeft: CELL_PAD_X_PX + TREE_STEP_PX * (baseLevel + depth) }}
             >
               <button
                 type="button"
@@ -304,7 +308,7 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
       >
         <span
           className="flex min-w-0 flex-1 items-center gap-2"
-          style={{ paddingLeft: 12 + TREE_STEP_PX * 2 }}
+          style={{ paddingLeft: CELL_PAD_X_PX + TREE_STEP_PX * baseLevel }}
         >
           <span className="size-5 shrink-0" aria-hidden />
           <span className="truncate">Add item</span>

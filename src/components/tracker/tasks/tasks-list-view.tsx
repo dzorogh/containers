@@ -518,7 +518,7 @@ export const TasksListView = ({
     return (
       <TableRow key={DRAFT_ROW_ID} className="hover:bg-muted/40" {...dropHandlers}>
         <TableCell className="px-3 py-1" colSpan={1}>
-          <div style={{ paddingLeft: TREE_STEP_PX * 2 + depth * 16 }}>
+          <div style={{ paddingLeft: (depth + 2) * TREE_STEP_PX }}>
             <Input
               ref={draftInputRef}
               value={draft.title}
@@ -655,7 +655,7 @@ export const TasksListView = ({
               ) : null}
               <div
                 className="flex min-w-0 items-center gap-2"
-                style={{ paddingLeft: TREE_STEP_PX + depth * 16 }}
+                style={{ paddingLeft: (depth + 1) * TREE_STEP_PX }}
               >
                 <button
                   type="button"
@@ -878,6 +878,7 @@ export const TasksListView = ({
             <TableCell colSpan={5} className="p-0">
               <TaskChecklist
                 items={task.checklist ?? []}
+                baseLevel={depth + 2}
                 onChange={(checklist) => updateTask(task.id, { checklist })}
               />
             </TableCell>
@@ -907,7 +908,7 @@ export const TasksListView = ({
           <TableCell colSpan={5} className="px-3 py-1">
             <div
               className="flex w-full items-center gap-2"
-              style={{ paddingLeft: 12 + depth * 16 }}
+              style={{ paddingLeft: depth * TREE_STEP_PX }}
             >
               <button
                 type="button"

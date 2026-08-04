@@ -23,7 +23,7 @@ export const TASK_GROUP_BY_OPTIONS: { value: TaskGroupBy; label: string }[] = [
   { value: "deadlineWeek", label: "Deadline week" },
 ];
 
-export const DEFAULT_TASK_GROUPING_LEVELS: TaskGroupBy[] = ["stage"];
+export const DEFAULT_TASK_GROUPING_LEVELS: TaskGroupBy[] = ["stage", "deadlineMonth"];
 
 export type GroupPathSegment = {
   groupBy: TaskGroupBy;

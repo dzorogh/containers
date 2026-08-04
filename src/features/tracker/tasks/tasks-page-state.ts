@@ -3,7 +3,7 @@ import {
   type TodayTask,
 } from "@/components/home/tasks-today-demo-data";
 
-export type TasksView = "table" | "calendar" | "overview";
+export type TasksView = "table" | "calendar";
 
 export type TasksScope =
   | "all"
@@ -58,7 +58,7 @@ const isTasksScope = (value: string | null): value is TasksScope =>
   value !== null && SCOPE_SET.has(value);
 
 const isTasksView = (value: string | null): value is TasksView =>
-  value === "table" || value === "calendar" || value === "overview";
+  value === "table" || value === "calendar";
 
 export const parseTasksPageState = (
   searchParams: URLSearchParams | { get: (key: string) => string | null },
@@ -66,14 +66,10 @@ export const parseTasksPageState = (
   const rawScope = searchParams.get("scope");
   const rawView = searchParams.get("view");
 
-  const scope: TasksScope = isTasksScope(rawScope) ? rawScope : "all";
-  let view: TasksView = isTasksView(rawView) ? rawView : "calendar";
-
-  if (view === "overview" && !isSpaceScope(scope)) {
-    view = "table";
-  }
-
-  return { scope, view };
+  return {
+    scope: isTasksScope(rawScope) ? rawScope : "all",
+    view: isTasksView(rawView) ? rawView : "calendar",
+  };
 };
 
 export const buildTasksHref = ({
@@ -150,10 +146,6 @@ export const getBreadcrumbSegments = (scope: TasksScope, view: TasksView): Bread
   const label = findSpaceLabel(scope);
   if (label) {
     segments.push({ label });
-  }
-
-  if (view === "overview") {
-    segments.push({ label: "Overview" });
   }
 
   return segments;

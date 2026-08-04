@@ -84,7 +84,8 @@ export const PROJECT_SETTINGS_SEED: ProjectSettingsSeed = {
   project: {
     id: "project-ecommerce",
     name: "Ecommerce",
-    description: "Project for managing supplies, catalog, and team tasks.",
+    description:
+      "<p>Project for managing supplies, catalog, and team tasks.</p><ul><li>Catalog updates</li><li>Supply planning</li></ul>",
     spaceId: "space-team",
     isArchived: false,
   },

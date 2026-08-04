@@ -28,6 +28,7 @@ type TasksToolbarProps = {
   onOpenSpaceSettings: () => void;
   onOpenProjectSettings: () => void;
   showOverview?: boolean;
+  onOpenOverview?: () => void;
 };
 
 export const TasksToolbar = ({
@@ -39,74 +40,77 @@ export const TasksToolbar = ({
   onOpenSpaceSettings,
   onOpenProjectSettings,
   showOverview = false,
+  onOpenOverview,
 }: TasksToolbarProps) => (
   <Card size="sm" className="ring-1 ring-[var(--corportal-border-grey)]">
     <CardHeader className="gap-0 space-y-3 pb-0">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <h1 className="text-lg font-semibold text-foreground">{title}</h1>
-          <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Task views">
+          <div className="flex flex-wrap items-center gap-1.5">
             {showOverview ? (
               <>
-                <HomeFilterChip
-                  active={view === "overview"}
-                  role="tab"
-                  aria-selected={view === "overview"}
-                  ariaLabel="Overview"
-                  onClick={() => onViewChange("overview")}
-                  className="gap-1.5"
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onOpenOverview}
+                  aria-label="Open project overview settings"
+                  className="gap-1.5 border-[var(--corportal-border-grey)] bg-card hover:bg-muted"
                 >
                   <FileText aria-hidden className="size-3.5" />
                   Overview
-                </HomeFilterChip>
+                </Button>
                 <div className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
               </>
             ) : null}
-            <HomeFilterChip
-              active={view === "table"}
-              role="tab"
-              aria-selected={view === "table"}
-              ariaLabel="Table view"
-              onClick={() => onViewChange("table")}
-              className="gap-1.5"
-            >
-              <Table2 aria-hidden className="size-3.5" />
-              Table
-            </HomeFilterChip>
-            <HomeFilterChip
-              active={false}
-              role="tab"
-              aria-selected={false}
-              ariaLabel="Board view (coming soon)"
-              disabled
-              title="Coming soon"
-              className="gap-1.5 opacity-60"
-            >
-              <Columns3 aria-hidden className="size-3.5" />
-              Board
-            </HomeFilterChip>
-            <HomeFilterChip
-              active={view === "calendar"}
-              role="tab"
-              aria-selected={view === "calendar"}
-              ariaLabel="Calendar view"
-              onClick={() => onViewChange("calendar")}
-              className="gap-1.5"
-            >
-              <CalendarDays aria-hidden className="size-3.5" />
-              Calendar
-            </HomeFilterChip>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              disabled
-              title="Coming soon"
-              aria-label="Add custom view (coming soon)"
-              className="opacity-60"
-            >
-              <Plus aria-hidden className="size-3.5" />
-            </Button>
+            <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Task views">
+              <HomeFilterChip
+                active={view === "table"}
+                role="tab"
+                aria-selected={view === "table"}
+                ariaLabel="Table view"
+                onClick={() => onViewChange("table")}
+                className="gap-1.5"
+              >
+                <Table2 aria-hidden className="size-3.5" />
+                Table
+              </HomeFilterChip>
+              <HomeFilterChip
+                active={false}
+                role="tab"
+                aria-selected={false}
+                ariaLabel="Board view (coming soon)"
+                disabled
+                title="Coming soon"
+                className="gap-1.5 opacity-60"
+              >
+                <Columns3 aria-hidden className="size-3.5" />
+                Board
+              </HomeFilterChip>
+              <HomeFilterChip
+                active={view === "calendar"}
+                role="tab"
+                aria-selected={view === "calendar"}
+                ariaLabel="Calendar view"
+                onClick={() => onViewChange("calendar")}
+                className="gap-1.5"
+              >
+                <CalendarDays aria-hidden className="size-3.5" />
+                Calendar
+              </HomeFilterChip>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                disabled
+                title="Coming soon"
+                aria-label="Add custom view (coming soon)"
+                className="opacity-60"
+              >
+                <Plus aria-hidden className="size-3.5" />
+              </Button>
+            </div>
           </div>
         </div>
 

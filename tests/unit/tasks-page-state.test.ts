@@ -19,38 +19,37 @@ describe("isSpaceScope", () => {
 });
 
 describe("parseTasksPageState", () => {
-  it("accepts view=overview for space scope", () => {
-    const state = parseTasksPageState(
-      new URLSearchParams("scope=space-it&view=overview"),
-    );
-    expect(state).toEqual({ scope: "space-it", view: "overview" });
+  it("accepts table and calendar views", () => {
+    expect(parseTasksPageState(new URLSearchParams("scope=space-it&view=table"))).toEqual({
+      scope: "space-it",
+      view: "table",
+    });
+    expect(parseTasksPageState(new URLSearchParams("scope=space-it&view=calendar"))).toEqual({
+      scope: "space-it",
+      view: "calendar",
+    });
   });
 
-  it("falls back overview to table when scope is not a space", () => {
-    const state = parseTasksPageState(
-      new URLSearchParams("scope=all&view=overview"),
-    );
-    expect(state).toEqual({ scope: "all", view: "table" });
+  it("falls back unknown views to calendar", () => {
+    expect(parseTasksPageState(new URLSearchParams("scope=space-it&view=overview"))).toEqual({
+      scope: "space-it",
+      view: "calendar",
+    });
   });
 });
 
 describe("buildTasksHref", () => {
-  it("includes overview view", () => {
-    expect(buildTasksHref({ scope: "space-it", view: "overview" })).toBe(
-      "/tracker/tasks?scope=space-it&view=overview",
+  it("includes view query", () => {
+    expect(buildTasksHref({ scope: "space-it", view: "table" })).toBe(
+      "/tracker/tasks?scope=space-it&view=table",
     );
   });
 });
 
 describe("getBreadcrumbSegments", () => {
-  it("appends Overview for space overview view", () => {
-    const labels = getBreadcrumbSegments("space-it", "overview").map((s) => s.label);
-    expect(labels.at(-1)).toBe("Overview");
-    expect(labels).toContain("IT");
-  });
-
-  it("does not append Overview for table view", () => {
+  it("includes space labels without Overview crumb", () => {
     const labels = getBreadcrumbSegments("space-it", "table").map((s) => s.label);
-    expect(labels.at(-1)).not.toBe("Overview");
+    expect(labels).toContain("IT");
+    expect(labels).not.toContain("Overview");
   });
 });

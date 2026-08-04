@@ -31,6 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ProjectDescriptionEditor } from "@/components/tracker/tasks/project-description-editor";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -250,15 +251,14 @@ export const ProjectSettingsModal = ({ open, onOpenChange }: ProjectSettingsModa
                 </Select>
               </label>
             </div>
-            <label className="grid gap-1">
+            <div className="grid gap-1">
               <span className="text-xs font-medium text-muted-foreground">Description</span>
-              <Input
+              <ProjectDescriptionEditor
                 value={projectDraft.description}
-                onChange={(e) => handleProjectFieldChange("description", e.target.value)}
-                aria-label="Project description"
-                placeholder="Short description"
+                onChange={(html) => handleProjectFieldChange("description", html)}
+                placeholder="Add a project description…"
               />
-            </label>
+            </div>
           </section>
 
           {/* Navigation to Members */}

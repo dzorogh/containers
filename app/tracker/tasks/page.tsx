@@ -24,6 +24,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { TasksMonthCalendar } from "@/components/tracker/tasks/calendar/tasks-month-calendar";
+import { ProjectOverviewCard } from "@/components/tracker/tasks/project-overview-card";
+import {
+  getProjectOverviewDemo,
+  type ProjectOverviewDemo,
+} from "@/components/tracker/tasks/project-overview-demo-data";
 import { ProjectSettingsModal } from "@/components/tracker/tasks/project-settings-modal";
 import { SpaceSettingsModal } from "@/components/tracker/tasks/space-settings-modal";
 import { TasksListView } from "@/components/tracker/tasks/tasks-list-view";
@@ -33,6 +38,7 @@ import {
   filterTasksByScope,
   getBreadcrumbSegments,
   getScopeTitle,
+  isSpaceScope,
   parseTasksPageState,
   type TasksScope,
   type TasksView,
@@ -55,6 +61,7 @@ const TrackerTasksPageContent = () => {
   const pageState = useMemo(() => parseTasksPageState(searchParams), [searchParams]);
 
   const [tasks, setTasks] = useState<TodayTask[]>(ALL_TASKS);
+  const [overviewDrafts, setOverviewDrafts] = useState<Record<string, ProjectOverviewDemo>>({});
   const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
   const [isSpaceSettingsOpen, setIsSpaceSettingsOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -65,6 +72,13 @@ const TrackerTasksPageContent = () => {
     () => filterTasksByScope(tasks, pageState.scope),
     [tasks, pageState.scope],
   );
+
+  const overviewDraft = useMemo(() => {
+    if (!isSpaceScope(pageState.scope)) {
+      return null;
+    }
+    return overviewDrafts[pageState.scope] ?? getProjectOverviewDemo(pageState.scope);
+  }, [overviewDrafts, pageState.scope]);
 
   const breadcrumbSegments = useMemo(
     () => getBreadcrumbSegments(pageState.scope, pageState.view),
@@ -162,9 +176,23 @@ const TrackerTasksPageContent = () => {
               onRefresh={() => router.refresh()}
               onOpenSpaceSettings={() => setIsSpaceSettingsOpen(true)}
               onOpenProjectSettings={() => setIsProjectSettingsOpen(true)}
+              showOverview={isSpaceScope(pageState.scope)}
             />
 
-            {pageState.view === "table" ? (
+            {pageState.view === "overview" && overviewDraft ? (
+              <ProjectOverviewCard
+                draft={overviewDraft}
+                onDescriptionSaved={(descriptionHtml) => {
+                  setOverviewDrafts((prev) => ({
+                    ...prev,
+                    [pageState.scope]: {
+                      ...(prev[pageState.scope] ?? getProjectOverviewDemo(pageState.scope)),
+                      descriptionHtml,
+                    },
+                  }));
+                }}
+              />
+            ) : pageState.view === "table" ? (
               <TasksListView
                 tasks={visibleTasks}
                 onTasksChange={handleVisibleTasksChange}

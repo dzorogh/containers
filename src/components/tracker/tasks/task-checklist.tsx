@@ -30,8 +30,22 @@ export const TREE_STEP_PX = 20;
 
 const newId = () => `cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const collectParentIds = (nodes: ChecklistItem[]): Set<string> => {
+  const ids = new Set<string>();
+  const walk = (list: ChecklistItem[]) => {
+    for (const node of list) {
+      if (node.children.length > 0) {
+        ids.add(node.id);
+        walk(node.children);
+      }
+    }
+  };
+  walk(nodes);
+  return ids;
+};
+
 export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => collectParentIds(items));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);

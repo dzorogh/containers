@@ -180,6 +180,7 @@ const TrackerTasksPageContent = () => {
                 tasks={visibleTasks}
                 onTasksChange={handleVisibleTasksChange}
                 spaceId={pageState.scope.startsWith("space-") ? pageState.scope : "space-holding"}
+                groupingLevels={groupingLevels}
               />
             ) : (
               <TasksMonthCalendar tasks={visibleTasks} onTasksChange={handleVisibleTasksChange} />

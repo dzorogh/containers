@@ -271,6 +271,7 @@ export const TaskChecklist = ({ items, onChange }: TaskChecklistProps) => {
                 onCheckedChange={() => onChange(toggleChecklistItem(items, item.id))}
                 onMouseDown={(event) => event.stopPropagation()}
                 aria-label={`Mark ${item.title || "item"} done`}
+                className="cursor-pointer"
               />
               {editing ? (
                 <Input

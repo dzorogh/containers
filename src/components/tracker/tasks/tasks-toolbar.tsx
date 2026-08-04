@@ -3,6 +3,7 @@
 import {
   CalendarDays,
   Columns3,
+  FileText,
   Filter,
   LayoutList,
   MoreHorizontal,
@@ -26,6 +27,7 @@ type TasksToolbarProps = {
   onRefresh?: () => void;
   onOpenSpaceSettings: () => void;
   onOpenProjectSettings: () => void;
+  showOverview?: boolean;
 };
 
 export const TasksToolbar = ({
@@ -36,6 +38,7 @@ export const TasksToolbar = ({
   onRefresh,
   onOpenSpaceSettings,
   onOpenProjectSettings,
+  showOverview = false,
 }: TasksToolbarProps) => (
   <Card size="sm" className="ring-1 ring-[var(--corportal-border-grey)]">
     <CardHeader className="gap-0 space-y-3 pb-0">
@@ -43,6 +46,22 @@ export const TasksToolbar = ({
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <h1 className="text-lg font-semibold text-foreground">{title}</h1>
           <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Task views">
+            {showOverview ? (
+              <>
+                <HomeFilterChip
+                  active={view === "overview"}
+                  role="tab"
+                  aria-selected={view === "overview"}
+                  ariaLabel="Overview"
+                  onClick={() => onViewChange("overview")}
+                  className="gap-1.5"
+                >
+                  <FileText aria-hidden className="size-3.5" />
+                  Overview
+                </HomeFilterChip>
+                <div className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
+              </>
+            ) : null}
             <HomeFilterChip
               active={view === "table"}
               role="tab"

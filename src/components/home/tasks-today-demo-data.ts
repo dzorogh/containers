@@ -3,6 +3,21 @@ export type TaskColor = "red" | "orange" | "blue" | "violet" | "emerald" | "pink
 
 export type TaskDateProperty = "deadline" | "createdAt" | "customDateField";
 
+export type DemoTaskStageId = "questions" | "tasks";
+
+export type DemoTaskStage = {
+  id: DemoTaskStageId;
+  name: string;
+  order: number;
+};
+
+export const DEMO_TASK_STAGES: DemoTaskStage[] = [
+  { id: "questions", name: "Questions", order: 1 },
+  { id: "tasks", name: "Tasks", order: 2 },
+];
+
+export const DEFAULT_DEMO_TASK_STAGE_ID: DemoTaskStageId = "tasks";
+
 export type TodayTask = {
   id: string;
   /** Текст дедлайна для карточек в старом списке задач. */
@@ -22,6 +37,7 @@ export type TodayTask = {
   assigneeName: string;
   assigneeAvatarUrl: string;
   spaceId: string;
+  stageId: DemoTaskStageId;
 };
 
 export const DEMO_TASK_ASSIGNEES = [
@@ -127,6 +143,7 @@ const createTask = (config: {
   createdMinute: number;
   customPlanningOffsetDays?: number;
   spaceId?: string;
+  stageId?: DemoTaskStageId;
   assigneeName?: string;
   assigneeId?: string;
 }) => {
@@ -169,12 +186,14 @@ const createTask = (config: {
     assigneeName: config.assigneeName ?? assignee.name,
     assigneeAvatarUrl: assigneeAvatarUrl(config.assigneeId ?? assignee.id),
     spaceId: config.spaceId ?? inferSpaceId(config.projectName),
+    stageId: config.stageId ?? DEFAULT_DEMO_TASK_STAGE_ID,
   } satisfies TodayTask;
 };
 
 export const TODAY_TASKS: TodayTask[] = [
   createTask({
     id: "task-1",
+    stageId: "questions",
     title: "Approve container specification",
     projectName: "PIM · Order #59",
     priority: "high",
@@ -190,6 +209,7 @@ export const TODAY_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-2",
+    stageId: "questions",
     title: "Verify packing calculation before shipment",
     projectName: "Logistics · East Warehouse",
     priority: "medium",
@@ -205,6 +225,7 @@ export const TODAY_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-3",
+    stageId: "questions",
     title: "Update ticket status in Service Desk",
     projectName: "IT · Service Desk",
     priority: "high",
@@ -220,6 +241,7 @@ export const TODAY_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-4",
+    stageId: "questions",
     title: "Prepare weekly SLA summary report",
     projectName: "HR · Onboarding",
     priority: "low",
@@ -235,6 +257,7 @@ export const TODAY_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-101",
+    stageId: "questions",
     title: "Confirm delivery window with courier service",
     projectName: "Operations · Last Mile",
     priority: "medium",
@@ -250,6 +273,7 @@ export const TODAY_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-102",
+    stageId: "questions",
     title: "Reconcile SKU stock before inventory count",
     projectName: "Warehouse · Inventory",
     priority: "high",
@@ -270,6 +294,7 @@ export const ALL_TASKS: TodayTask[] = [
   ...TODAY_TASKS,
   createTask({
     id: "task-5",
+    stageId: "questions",
     title: "Approve packaging mockup with client",
     projectName: "PIM · Order #62",
     priority: "medium",
@@ -285,6 +310,7 @@ export const ALL_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-6",
+    stageId: "questions",
     title: "Update warehouse receiving instructions",
     projectName: "Logistics · Processes",
     priority: "low",
@@ -300,6 +326,7 @@ export const ALL_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-7",
+    stageId: "tasks",
     title: "Review delivery risk assessment",
     projectName: "Procurement · Contracts",
     priority: "high",
@@ -315,6 +342,7 @@ export const ALL_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-8",
+    stageId: "tasks",
     title: "Complete pre-release checklist",
     projectName: "IT · Releases",
     priority: "medium",
@@ -330,6 +358,7 @@ export const ALL_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-9",
+    stageId: "tasks",
     title: "Update packaging cost calculation",
     projectName: "Finance · Cost Control",
     priority: "medium",
@@ -345,6 +374,7 @@ export const ALL_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-10",
+    stageId: "tasks",
     title: "Sync shipment plan with 3PL",
     projectName: "Operations · Deliveries",
     priority: "high",
@@ -360,6 +390,7 @@ export const ALL_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-11",
+    stageId: "tasks",
     title: "Prepare QA checklist for client demo",
     projectName: "Product · QA",
     priority: "low",
@@ -375,6 +406,7 @@ export const ALL_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-12",
+    stageId: "tasks",
     title: "Collect feedback on the new request form",
     projectName: "CX · Support",
     priority: "medium",
@@ -390,6 +422,7 @@ export const ALL_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-13",
+    stageId: "tasks",
     title: "Verify SLA compliance for overnight incidents",
     projectName: "IT · Monitoring",
     priority: "high",
@@ -405,6 +438,7 @@ export const ALL_TASKS: TodayTask[] = [
   }),
   createTask({
     id: "task-14",
+    stageId: "tasks",
     title: "Prepare materials for team retro",
     projectName: "Agile · Team Ops",
     priority: "low",

@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   DEMO_TASK_ASSIGNEES,
+  DEFAULT_DEMO_TASK_STAGE_ID,
   taskAssigneeAvatarUrl,
   type TaskPriority,
   type TodayTask,
@@ -118,6 +119,7 @@ const buildCreatedTask = (title: string, spaceId: string): TodayTask => {
     assigneeName: "Unassigned",
     assigneeAvatarUrl: taskAssigneeAvatarUrl(taskId),
     spaceId,
+    stageId: DEFAULT_DEMO_TASK_STAGE_ID,
   };
 };
 

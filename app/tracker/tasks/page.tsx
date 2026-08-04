@@ -4,7 +4,7 @@ import { Fragment, Suspense, useMemo, useState, type Dispatch, type FormEvent, t
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ALL_TASKS, type TodayTask } from "@/components/home/tasks-today-demo-data";
+import { ALL_TASKS, DEFAULT_DEMO_TASK_STAGE_ID, type TodayTask } from "@/components/home/tasks-today-demo-data";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -118,6 +118,7 @@ const TrackerTasksPageContent = () => {
       assigneeName: "Unassigned",
       assigneeAvatarUrl: `https://i.pravatar.cc/40?u=task-assignee-${taskId}`,
       spaceId: pageState.scope.startsWith("space-") ? pageState.scope : "space-holding",
+      stageId: DEFAULT_DEMO_TASK_STAGE_ID,
     };
 
     setTasks((prev) => [...prev, nextTask]);

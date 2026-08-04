@@ -3,7 +3,7 @@
 import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { ChevronLeft, ChevronRight, Plus, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
-import type { TaskPriority, TodayTask } from "@/components/home/tasks-today-demo-data";
+import { DEFAULT_DEMO_TASK_STAGE_ID, type TaskPriority, type TodayTask } from "@/components/home/tasks-today-demo-data";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -294,6 +294,7 @@ export const TasksMonthCalendar = ({ tasks, onTasksChange }: TasksMonthCalendarP
       assigneeName: "Unassigned",
       assigneeAvatarUrl: `https://i.pravatar.cc/40?u=task-assignee-${taskId}`,
       spaceId: "space-holding",
+      stageId: DEFAULT_DEMO_TASK_STAGE_ID,
     };
 
     onTasksChange((prevTasks) => [...prevTasks, nextTask]);

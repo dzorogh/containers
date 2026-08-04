@@ -119,6 +119,7 @@ const TrackerTasksPageContent = () => {
       assigneeAvatarUrl: `https://i.pravatar.cc/40?u=task-assignee-${taskId}`,
       spaceId: pageState.scope.startsWith("space-") ? pageState.scope : "space-holding",
       stageId: DEFAULT_DEMO_TASK_STAGE_ID,
+      checklist: [],
     };
 
     setTasks((prev) => [...prev, nextTask]);

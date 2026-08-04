@@ -18,6 +18,13 @@ export const DEMO_TASK_STAGES: DemoTaskStage[] = [
 
 export const DEFAULT_DEMO_TASK_STAGE_ID: DemoTaskStageId = "tasks";
 
+export type ChecklistItem = {
+  id: string;
+  title: string;
+  done: boolean;
+  children: ChecklistItem[];
+};
+
 export type TodayTask = {
   id: string;
   /** Текст дедлайна для карточек в старом списке задач. */
@@ -38,6 +45,7 @@ export type TodayTask = {
   assigneeAvatarUrl: string;
   spaceId: string;
   stageId: DemoTaskStageId;
+  checklist: ChecklistItem[];
 };
 
 export const DEMO_TASK_ASSIGNEES = [
@@ -146,6 +154,7 @@ const createTask = (config: {
   stageId?: DemoTaskStageId;
   assigneeName?: string;
   assigneeId?: string;
+  checklist?: ChecklistItem[];
 }) => {
   const deadlineAt = buildDateTime(
     DEMO_REFERENCE_NOW,
@@ -187,6 +196,7 @@ const createTask = (config: {
     assigneeAvatarUrl: assigneeAvatarUrl(config.assigneeId ?? assignee.id),
     spaceId: config.spaceId ?? inferSpaceId(config.projectName),
     stageId: config.stageId ?? DEFAULT_DEMO_TASK_STAGE_ID,
+    checklist: config.checklist ?? [],
   } satisfies TodayTask;
 };
 
@@ -355,6 +365,46 @@ export const ALL_TASKS: TodayTask[] = [
     createdHour: 12,
     createdMinute: 0,
     customPlanningOffsetDays: 5,
+    checklist: [
+      {
+        id: "cli-8-1",
+        title: "Pre-flight",
+        done: false,
+        children: [
+          {
+            id: "cli-8-1-1",
+            title: "Build green",
+            done: true,
+            children: [
+              {
+                id: "cli-8-1-1-1",
+                title: "Typecheck",
+                done: true,
+                children: [],
+              },
+              {
+                id: "cli-8-1-1-2",
+                title: "Unit tests",
+                done: false,
+                children: [],
+              },
+            ],
+          },
+          {
+            id: "cli-8-1-2",
+            title: "Changelog updated",
+            done: false,
+            children: [],
+          },
+        ],
+      },
+      {
+        id: "cli-8-2",
+        title: "Notify stakeholders",
+        done: false,
+        children: [],
+      },
+    ],
   }),
   createTask({
     id: "task-9",
@@ -403,6 +453,11 @@ export const ALL_TASKS: TodayTask[] = [
     createdHour: 11,
     createdMinute: 15,
     customPlanningOffsetDays: 2,
+    checklist: [
+      { id: "cli-11-1", title: "Smoke login", done: true, children: [] },
+      { id: "cli-11-2", title: "Create order", done: false, children: [] },
+      { id: "cli-11-3", title: "Export report", done: false, children: [] },
+    ],
   }),
   createTask({
     id: "task-12",

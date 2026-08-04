@@ -140,6 +140,7 @@ const buildCreatedTask = (
     assigneeAvatarUrl: taskAssigneeAvatarUrl(taskId),
     spaceId,
     stageId,
+    checklist: [],
   };
 };
 

@@ -38,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
@@ -152,6 +153,7 @@ const buildCreatedTask = (
     assigneeAvatarUrl: taskAssigneeAvatarUrl(taskId),
     spaceId,
     stageId,
+    done: false,
     checklist: [],
   };
 };
@@ -396,6 +398,7 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="px-3 text-xs">Title</TableHead>
+            <TableHead className="w-16 px-3 text-xs">Done</TableHead>
             <TableHead className="w-28 px-3 text-xs">Priority</TableHead>
             <TableHead className="w-36 px-3 text-xs">Deadline</TableHead>
             <TableHead className="w-44 px-3 text-xs">Assignee</TableHead>
@@ -427,7 +430,7 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                   )}
                   {...stageDropHandlers}
                 >
-                  <TableCell colSpan={4} className="px-3 py-2">
+                  <TableCell colSpan={5} className="px-3 py-2">
                     <button
                       type="button"
                       className="flex w-full items-center gap-2 text-left text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -513,7 +516,10 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                                   return true;
                                 }}
                                 aria-label={`Edit title for ${task.title}`}
-                                className="text-foreground"
+                                className={cn(
+                                  "text-foreground",
+                                  task.done && "text-muted-foreground line-through",
+                                )}
                               />
                               {checklistProgress.total > 0 ? (
                                 <button
@@ -539,6 +545,22 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                                 <SquareArrowOutUpRight className="size-3.5" aria-hidden />
                               </Link>
                             </div>
+                          </TableCell>
+                          <TableCell className="px-3 py-2">
+                            <Switch
+                              size="sm"
+                              checked={task.done}
+                              onCheckedChange={(checked) =>
+                                updateTask(task.id, { done: checked })
+                              }
+                              aria-label={
+                                task.done
+                                  ? `Mark ${task.title} as not done`
+                                  : `Mark ${task.title} as done`
+                              }
+                              onClick={(event) => event.stopPropagation()}
+                              onPointerDown={(event) => event.stopPropagation()}
+                            />
                           </TableCell>
                           <TableCell className="px-3 py-2">
                             <Select
@@ -667,7 +689,7 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                             className="border-0 hover:bg-transparent"
                             onDragStart={(event) => event.preventDefault()}
                           >
-                            <TableCell colSpan={4} className="p-0">
+                            <TableCell colSpan={5} className="p-0">
                               <TaskChecklist
                                 items={task.checklist ?? []}
                                 onChange={(checklist) => updateTask(task.id, { checklist })}
@@ -706,6 +728,7 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                         />
                       </div>
                     </TableCell>
+                    <TableCell className="px-3 py-2" />
                     <TableCell className="px-3 py-2 text-xs text-muted-foreground">Medium</TableCell>
                     <TableCell className="px-3 py-2 text-xs text-muted-foreground">Today</TableCell>
                     <TableCell className="px-3 py-2 text-xs text-muted-foreground">Unassigned</TableCell>

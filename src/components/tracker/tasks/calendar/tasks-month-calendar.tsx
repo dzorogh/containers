@@ -295,6 +295,7 @@ export const TasksMonthCalendar = ({ tasks, onTasksChange }: TasksMonthCalendarP
       assigneeAvatarUrl: `https://i.pravatar.cc/40?u=task-assignee-${taskId}`,
       spaceId: "space-holding",
       stageId: DEFAULT_DEMO_TASK_STAGE_ID,
+      done: false,
       checklist: [],
     };
 

@@ -38,6 +38,8 @@ export type TodayTask = {
   color: TaskColor;
   priority: TaskPriority;
   title: string;
+  /** Whether the task is marked complete. */
+  done: boolean;
   projectName: string;
   comments: number;
   href: string;
@@ -155,6 +157,7 @@ const createTask = (config: {
   stageId?: DemoTaskStageId;
   assigneeName?: string;
   assigneeId?: string;
+  done?: boolean;
   checklist?: ChecklistItem[];
 }) => {
   const deadlineOffsetDays = config.deadlineOffsetDays;
@@ -188,6 +191,7 @@ const createTask = (config: {
   return {
     id: config.id,
     title: config.title,
+    done: config.done ?? false,
     projectName: config.projectName,
     priority: config.priority,
     comments: config.comments,

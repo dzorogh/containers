@@ -143,9 +143,10 @@ const createTask = (config: {
   priority: TaskPriority;
   comments: number;
   color: TaskColor;
-  deadlineOffsetDays: number;
-  deadlineHour: number;
-  deadlineMinute: number;
+  /** Omit deadline fields for Questions (no due date). */
+  deadlineOffsetDays?: number;
+  deadlineHour?: number;
+  deadlineMinute?: number;
   createdOffsetDays: number;
   createdHour: number;
   createdMinute: number;
@@ -156,24 +157,30 @@ const createTask = (config: {
   assigneeId?: string;
   checklist?: ChecklistItem[];
 }) => {
-  const deadlineAt = buildDateTime(
-    DEMO_REFERENCE_NOW,
-    config.deadlineOffsetDays,
-    config.deadlineHour,
-    config.deadlineMinute,
-  );
+  const deadlineOffsetDays = config.deadlineOffsetDays;
+  const deadlineHour = config.deadlineHour;
+  const deadlineMinute = config.deadlineMinute;
+  const hasDeadline =
+    deadlineOffsetDays !== undefined &&
+    deadlineHour !== undefined &&
+    deadlineMinute !== undefined;
+  const deadlineAt = hasDeadline
+    ? buildDateTime(DEMO_REFERENCE_NOW, deadlineOffsetDays, deadlineHour, deadlineMinute)
+    : "";
   const createdAt = buildDateTime(
     DEMO_REFERENCE_NOW,
     config.createdOffsetDays,
     config.createdHour,
     config.createdMinute,
   );
-  const planningDate = buildDateTime(
-    DEMO_REFERENCE_NOW,
-    config.customPlanningOffsetDays ?? config.deadlineOffsetDays,
-    config.deadlineHour,
-    config.deadlineMinute,
-  );
+  const planningDate = hasDeadline
+    ? buildDateTime(
+      DEMO_REFERENCE_NOW,
+      config.customPlanningOffsetDays ?? deadlineOffsetDays,
+      deadlineHour,
+      deadlineMinute,
+    )
+    : "";
   const assignee = config.assigneeId
     ? (DEMO_ASSIGNEES.find((item) => item.id === config.assigneeId) ?? pickAssignee(config.id))
     : pickAssignee(config.id);
@@ -190,7 +197,9 @@ const createTask = (config: {
     customDateFields: {
       planningDate,
     },
-    deadlineLabel: formatDeadlineLabel(deadlineAt, DEMO_REFERENCE_NOW),
+    deadlineLabel: hasDeadline
+      ? formatDeadlineLabel(deadlineAt, DEMO_REFERENCE_NOW)
+      : "No deadline",
     href: `/tracker/tasks/${config.id}`,
     assigneeName: config.assigneeName ?? assignee.name,
     assigneeAvatarUrl: assigneeAvatarUrl(config.assigneeId ?? assignee.id),
@@ -200,7 +209,7 @@ const createTask = (config: {
   } satisfies TodayTask;
 };
 
-export const TODAY_TASKS: TodayTask[] = [
+const DEMO_QUESTIONS: TodayTask[] = [
   createTask({
     id: "task-1",
     stageId: "questions",
@@ -209,13 +218,9 @@ export const TODAY_TASKS: TodayTask[] = [
     priority: "high",
     comments: 5,
     color: "red",
-    deadlineOffsetDays: 0,
-    deadlineHour: 12,
-    deadlineMinute: 0,
     createdOffsetDays: -2,
     createdHour: 10,
     createdMinute: 10,
-    customPlanningOffsetDays: 1,
   }),
   createTask({
     id: "task-2",
@@ -225,13 +230,9 @@ export const TODAY_TASKS: TodayTask[] = [
     priority: "medium",
     comments: 12,
     color: "orange",
-    deadlineOffsetDays: 0,
-    deadlineHour: 15,
-    deadlineMinute: 30,
     createdOffsetDays: -3,
     createdHour: 9,
     createdMinute: 20,
-    customPlanningOffsetDays: 2,
   }),
   createTask({
     id: "task-3",
@@ -241,13 +242,9 @@ export const TODAY_TASKS: TodayTask[] = [
     priority: "high",
     comments: 3,
     color: "violet",
-    deadlineOffsetDays: 0,
-    deadlineHour: 17,
-    deadlineMinute: 0,
     createdOffsetDays: -1,
     createdHour: 14,
     createdMinute: 45,
-    customPlanningOffsetDays: 0,
   }),
   createTask({
     id: "task-4",
@@ -257,13 +254,9 @@ export const TODAY_TASKS: TodayTask[] = [
     priority: "low",
     comments: 0,
     color: "blue",
-    deadlineOffsetDays: 0,
-    deadlineHour: 18,
-    deadlineMinute: 0,
     createdOffsetDays: -4,
     createdHour: 11,
     createdMinute: 0,
-    customPlanningOffsetDays: 3,
   }),
   createTask({
     id: "task-101",
@@ -273,13 +266,9 @@ export const TODAY_TASKS: TodayTask[] = [
     priority: "medium",
     comments: 4,
     color: "orange",
-    deadlineOffsetDays: 0,
-    deadlineHour: 19,
-    deadlineMinute: 15,
     createdOffsetDays: -2,
     createdHour: 13,
     createdMinute: 10,
-    customPlanningOffsetDays: 0,
   }),
   createTask({
     id: "task-102",
@@ -289,19 +278,10 @@ export const TODAY_TASKS: TodayTask[] = [
     priority: "high",
     comments: 6,
     color: "red",
-    deadlineOffsetDays: 0,
-    deadlineHour: 20,
-    deadlineMinute: 0,
     createdOffsetDays: -1,
     createdHour: 16,
     createdMinute: 35,
-    customPlanningOffsetDays: 1,
   }),
-];
-
-/** Полный демо-список для страницы «Все задачи» (включает задачи на сегодня). */
-export const ALL_TASKS: TodayTask[] = [
-  ...TODAY_TASKS,
   createTask({
     id: "task-5",
     stageId: "questions",
@@ -310,13 +290,9 @@ export const ALL_TASKS: TodayTask[] = [
     priority: "medium",
     comments: 2,
     color: "pink",
-    deadlineOffsetDays: 0,
-    deadlineHour: 19,
-    deadlineMinute: 30,
     createdOffsetDays: -2,
     createdHour: 8,
     createdMinute: 40,
-    customPlanningOffsetDays: 0,
   }),
   createTask({
     id: "task-6",
@@ -326,14 +302,125 @@ export const ALL_TASKS: TodayTask[] = [
     priority: "low",
     comments: 7,
     color: "emerald",
-    deadlineOffsetDays: 1,
-    deadlineHour: 9,
-    deadlineMinute: 0,
     createdOffsetDays: -5,
     createdHour: 16,
     createdMinute: 20,
-    customPlanningOffsetDays: 4,
   }),
+  createTask({
+    id: "task-201",
+    stageId: "questions",
+    title: "Clarify VPN access for new contractors",
+    projectName: "IT · Access",
+    priority: "high",
+    comments: 4,
+    color: "red",
+    createdOffsetDays: -1,
+    createdHour: 11,
+    createdMinute: 20,
+    assigneeId: "anna-petrova",
+    checklist: [
+      { id: "cli-201-1", title: "List contractor roles that need VPN", done: true, children: [] },
+      { id: "cli-201-2", title: "Confirm split-tunnel policy", done: false, children: [] },
+      { id: "cli-201-3", title: "Align with security on MFA requirement", done: false, children: [] },
+    ],
+  }),
+  createTask({
+    id: "task-202",
+    stageId: "questions",
+    title: "Which MFA method should we enforce for admins?",
+    projectName: "IT · Security",
+    priority: "high",
+    comments: 9,
+    color: "violet",
+    createdOffsetDays: -2,
+    createdHour: 15,
+    createdMinute: 5,
+    assigneeId: "dmitry-sokolov",
+    checklist: [
+      {
+        id: "cli-202-1",
+        title: "Compare options",
+        done: false,
+        children: [
+          { id: "cli-202-1-1", title: "Hardware keys", done: true, children: [] },
+          { id: "cli-202-1-2", title: "Authenticator app", done: true, children: [] },
+          { id: "cli-202-1-3", title: "SMS backup", done: false, children: [] },
+        ],
+      },
+      { id: "cli-202-2", title: "Draft recommendation for IT leads", done: false, children: [] },
+      { id: "cli-202-3", title: "Get security sign-off", done: false, children: [] },
+    ],
+  }),
+  createTask({
+    id: "task-203",
+    stageId: "questions",
+    title: "Confirm backup retention for staging DBs",
+    projectName: "IT · Infra",
+    priority: "medium",
+    comments: 2,
+    color: "orange",
+    createdOffsetDays: -3,
+    createdHour: 10,
+    createdMinute: 40,
+    assigneeId: "maria-egorova",
+  }),
+  createTask({
+    id: "task-204",
+    stageId: "questions",
+    title: "Do we need a separate staging Kubernetes namespace?",
+    projectName: "IT · Infra",
+    priority: "medium",
+    comments: 6,
+    color: "blue",
+    createdOffsetDays: -4,
+    createdHour: 9,
+    createdMinute: 15,
+    assigneeId: "pavel-gromov",
+  }),
+  createTask({
+    id: "task-205",
+    stageId: "questions",
+    title: "Who owns on-call rotation for Q3?",
+    projectName: "IT · Monitoring",
+    priority: "low",
+    comments: 1,
+    color: "emerald",
+    createdOffsetDays: -5,
+    createdHour: 16,
+    createdMinute: 50,
+    assigneeId: "anna-petrova",
+  }),
+  createTask({
+    id: "task-206",
+    stageId: "questions",
+    title: "Approve laptop refresh budget for support team",
+    projectName: "IT · Service Desk",
+    priority: "medium",
+    comments: 3,
+    color: "pink",
+    createdOffsetDays: -6,
+    createdHour: 12,
+    createdMinute: 0,
+    assigneeId: "dmitry-sokolov",
+  }),
+  createTask({
+    id: "task-207",
+    stageId: "questions",
+    title: "Can we deprecate the legacy LDAP sync job?",
+    projectName: "IT · Access",
+    priority: "low",
+    comments: 5,
+    color: "orange",
+    createdOffsetDays: -7,
+    createdHour: 14,
+    createdMinute: 30,
+    assigneeId: "maria-egorova",
+  }),
+];
+
+/** Полный демо-список для страницы «Все задачи» (включает задачи на сегодня). */
+export const ALL_TASKS: TodayTask[] = [
+  ...DEMO_QUESTIONS,
   createTask({
     id: "task-7",
     stageId: "tasks",
@@ -342,7 +429,7 @@ export const ALL_TASKS: TodayTask[] = [
     priority: "high",
     comments: 1,
     color: "red",
-    deadlineOffsetDays: 1,
+    deadlineOffsetDays: 0,
     deadlineHour: 11,
     deadlineMinute: 0,
     createdOffsetDays: -1,
@@ -358,7 +445,7 @@ export const ALL_TASKS: TodayTask[] = [
     priority: "medium",
     comments: 4,
     color: "orange",
-    deadlineOffsetDays: 1,
+    deadlineOffsetDays: 0,
     deadlineHour: 14,
     deadlineMinute: 0,
     createdOffsetDays: -3,
@@ -414,7 +501,7 @@ export const ALL_TASKS: TodayTask[] = [
     priority: "medium",
     comments: 6,
     color: "blue",
-    deadlineOffsetDays: 3,
+    deadlineOffsetDays: 0,
     deadlineHour: 10,
     deadlineMinute: 30,
     createdOffsetDays: -6,
@@ -430,7 +517,7 @@ export const ALL_TASKS: TodayTask[] = [
     priority: "high",
     comments: 9,
     color: "violet",
-    deadlineOffsetDays: 3,
+    deadlineOffsetDays: 0,
     deadlineHour: 13,
     deadlineMinute: 45,
     createdOffsetDays: -2,
@@ -446,7 +533,7 @@ export const ALL_TASKS: TodayTask[] = [
     priority: "low",
     comments: 1,
     color: "emerald",
-    deadlineOffsetDays: 3,
+    deadlineOffsetDays: 0,
     deadlineHour: 16,
     deadlineMinute: 0,
     createdOffsetDays: -4,
@@ -467,7 +554,7 @@ export const ALL_TASKS: TodayTask[] = [
     priority: "medium",
     comments: 8,
     color: "pink",
-    deadlineOffsetDays: 3,
+    deadlineOffsetDays: 0,
     deadlineHour: 18,
     deadlineMinute: 15,
     createdOffsetDays: -7,
@@ -507,4 +594,197 @@ export const ALL_TASKS: TodayTask[] = [
     createdMinute: 0,
     customPlanningOffsetDays: 12,
   }),
+  createTask({
+    id: "task-210",
+    stageId: "tasks",
+    title: "Roll out password policy update to all workstations",
+    projectName: "IT · Security",
+    priority: "high",
+    comments: 7,
+    color: "red",
+    deadlineOffsetDays: 14,
+    deadlineHour: 17,
+    deadlineMinute: 0,
+    createdOffsetDays: -3,
+    createdHour: 10,
+    createdMinute: 0,
+    customPlanningOffsetDays: 10,
+    assigneeId: "anna-petrova",
+    checklist: [
+      { id: "cli-210-1", title: "Draft policy changelog", done: true, children: [] },
+      { id: "cli-210-2", title: "Pilot on IT laptops", done: false, children: [] },
+      { id: "cli-210-3", title: "Company-wide rollout", done: false, children: [] },
+    ],
+  }),
+  createTask({
+    id: "task-211",
+    stageId: "tasks",
+    title: "Migrate CI runners to the new autoscaling pool",
+    projectName: "IT · Infra",
+    priority: "high",
+    comments: 11,
+    color: "violet",
+    deadlineOffsetDays: 21,
+    deadlineHour: 12,
+    deadlineMinute: 0,
+    createdOffsetDays: -8,
+    createdHour: 9,
+    createdMinute: 30,
+    customPlanningOffsetDays: 18,
+    assigneeId: "pavel-gromov",
+  }),
+  createTask({
+    id: "task-212",
+    stageId: "tasks",
+    title: "Document disaster recovery runbook for Postgres",
+    projectName: "IT · Infra",
+    priority: "medium",
+    comments: 4,
+    color: "blue",
+    deadlineOffsetDays: 28,
+    deadlineHour: 16,
+    deadlineMinute: 30,
+    createdOffsetDays: -5,
+    createdHour: 11,
+    createdMinute: 15,
+    customPlanningOffsetDays: 25,
+    assigneeId: "maria-egorova",
+    checklist: [
+      { id: "cli-212-1", title: "RTO / RPO targets", done: true, children: [] },
+      { id: "cli-212-2", title: "Failover drill steps", done: false, children: [] },
+      { id: "cli-212-3", title: "Review with on-call leads", done: false, children: [] },
+    ],
+  }),
+  createTask({
+    id: "task-213",
+    stageId: "tasks",
+    title: "Upgrade observability stack to Grafana 11",
+    projectName: "IT · Monitoring",
+    priority: "medium",
+    comments: 6,
+    color: "orange",
+    deadlineOffsetDays: 35,
+    deadlineHour: 11,
+    deadlineMinute: 0,
+    createdOffsetDays: -10,
+    createdHour: 13,
+    createdMinute: 45,
+    customPlanningOffsetDays: 30,
+    assigneeId: "dmitry-sokolov",
+  }),
+  createTask({
+    id: "task-214",
+    stageId: "tasks",
+    title: "Replace end-of-life VPN concentrators",
+    projectName: "IT · Access",
+    priority: "high",
+    comments: 8,
+    color: "red",
+    deadlineOffsetDays: 45,
+    deadlineHour: 18,
+    deadlineMinute: 0,
+    createdOffsetDays: -12,
+    createdHour: 8,
+    createdMinute: 20,
+    customPlanningOffsetDays: 40,
+    assigneeId: "pavel-gromov",
+  }),
+  createTask({
+    id: "task-215",
+    stageId: "tasks",
+    title: "Plan Q3 capacity for Kubernetes cluster",
+    projectName: "IT · Infra",
+    priority: "medium",
+    comments: 3,
+    color: "emerald",
+    deadlineOffsetDays: 60,
+    deadlineHour: 15,
+    deadlineMinute: 0,
+    createdOffsetDays: -4,
+    createdHour: 14,
+    createdMinute: 10,
+    customPlanningOffsetDays: 50,
+    assigneeId: "anna-petrova",
+    checklist: [
+      { id: "cli-215-1", title: "Collect node utilization", done: true, children: [] },
+      { id: "cli-215-2", title: "Forecast new services", done: false, children: [] },
+      { id: "cli-215-3", title: "Budget request draft", done: false, children: [] },
+    ],
+  }),
+  createTask({
+    id: "task-216",
+    stageId: "tasks",
+    title: "Renew SSL certificates for public APIs",
+    projectName: "IT · Security",
+    priority: "high",
+    comments: 2,
+    color: "violet",
+    deadlineOffsetDays: 75,
+    deadlineHour: 10,
+    deadlineMinute: 0,
+    createdOffsetDays: -2,
+    createdHour: 16,
+    createdMinute: 0,
+    customPlanningOffsetDays: 70,
+    assigneeId: "maria-egorova",
+  }),
+  createTask({
+    id: "task-217",
+    stageId: "tasks",
+    title: "Implement SSO for internal admin tools",
+    projectName: "IT · Access",
+    priority: "medium",
+    comments: 10,
+    color: "blue",
+    deadlineOffsetDays: 90,
+    deadlineHour: 17,
+    deadlineMinute: 30,
+    createdOffsetDays: -15,
+    createdHour: 10,
+    createdMinute: 45,
+    customPlanningOffsetDays: 80,
+    assigneeId: "dmitry-sokolov",
+    checklist: [
+      { id: "cli-217-1", title: "IdP app registrations", done: false, children: [] },
+      { id: "cli-217-2", title: "Migrate first 3 tools", done: false, children: [] },
+      { id: "cli-217-3", title: "Decommission local logins", done: false, children: [] },
+    ],
+  }),
+  createTask({
+    id: "task-218",
+    stageId: "tasks",
+    title: "Define annual hardware refresh roadmap",
+    projectName: "IT · Service Desk",
+    priority: "low",
+    comments: 1,
+    color: "pink",
+    deadlineOffsetDays: 120,
+    deadlineHour: 12,
+    deadlineMinute: 0,
+    createdOffsetDays: -20,
+    createdHour: 9,
+    createdMinute: 0,
+    customPlanningOffsetDays: 100,
+    assigneeId: "pavel-gromov",
+  }),
+  createTask({
+    id: "task-219",
+    stageId: "tasks",
+    title: "Evaluate managed SIEM vendors for next FY",
+    projectName: "IT · Security",
+    priority: "low",
+    comments: 5,
+    color: "orange",
+    deadlineOffsetDays: 150,
+    deadlineHour: 14,
+    deadlineMinute: 0,
+    createdOffsetDays: -7,
+    createdHour: 11,
+    createdMinute: 30,
+    customPlanningOffsetDays: 140,
+    assigneeId: "anna-petrova",
+  }),
 ];
+
+/** Задачи с дедлайном на демо-сегодня (для home и scope=today). */
+export const TODAY_TASKS: TodayTask[] = ALL_TASKS.filter(isTaskDueOnDemoToday);

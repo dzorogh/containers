@@ -99,6 +99,10 @@ const toDateInputValue = (isoDate: string) => {
 };
 
 const deadlineFromDateInput = (value: string, previousIso: string) => {
+  if (!value) {
+    return "";
+  }
+
   const previous = new Date(previousIso);
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) {
@@ -129,7 +133,9 @@ const buildCreatedTask = (
   stageId: DemoTaskStageId,
 ): TodayTask => {
   const taskId = `task-${Date.now()}`;
-  const deadlineAt = new Date().toISOString();
+  const createdAt = new Date().toISOString();
+  const hasDeadline = stageId !== "questions";
+  const deadlineAt = hasDeadline ? createdAt : "";
   return {
     id: taskId,
     href: `/tracker/tasks/${taskId}`,
@@ -139,8 +145,8 @@ const buildCreatedTask = (
     comments: 0,
     color: "blue",
     deadlineAt,
-    deadlineLabel: formatDeadlineLabel(deadlineAt),
-    createdAt: deadlineAt,
+    deadlineLabel: hasDeadline ? formatDeadlineLabel(deadlineAt) : "No deadline",
+    createdAt,
     customDateFields: { planningDate: deadlineAt },
     assigneeName: "Unassigned",
     assigneeAvatarUrl: taskAssigneeAvatarUrl(taskId),
@@ -586,7 +592,9 @@ export const TasksListView = ({ tasks, onTasksChange, spaceId }: TasksListViewPr
                                 );
                                 updateTask(task.id, {
                                   deadlineAt: nextIso,
-                                  deadlineLabel: formatDeadlineLabel(nextIso),
+                                  deadlineLabel: nextIso
+                                    ? formatDeadlineLabel(nextIso)
+                                    : "No deadline",
                                   customDateFields: {
                                     ...task.customDateFields,
                                     planningDate: nextIso,

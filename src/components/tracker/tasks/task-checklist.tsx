@@ -22,11 +22,28 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
+export const CHECKLIST_DND_MIME = "application/x-oryx-checklist-item";
+
+export type ChecklistDragPayload = {
+  type: "checklist-item";
+  sourceTaskId: string;
+  itemId: string;
+};
+
 type TaskChecklistProps = {
   items: ChecklistItem[];
   onChange: (next: ChecklistItem[]) => void;
   /** Tree level of root checklist items (task is level−1). Matches group/task ladder. */
   baseLevel?: number;
+  taskId: string;
+  /** When set, an item from another task is being dragged */
+  externalDraggingId?: string | null;
+  onChecklistDragStart?: (itemId: string) => void;
+  onChecklistDragEnd?: () => void;
+  /** Cross-task drop onto an item (parent performs extract+insert) */
+  onExternalDropOnItem?: (itemId: string, position: ChecklistDropPosition) => void;
+  /** Cross-task drop onto empty / root panel */
+  onExternalDropOnRoot?: () => void;
 };
 
 /** Shared tree indent step so group → task → checklist chevrons form a ladder. */
@@ -50,7 +67,21 @@ const collectParentIds = (nodes: ChecklistItem[]): Set<string> => {
   return ids;
 };
 
-export const TaskChecklist = ({ items, onChange, baseLevel = 2 }: TaskChecklistProps) => {
+const isChecklistDrag = (event: DragEvent, externalDraggingId?: string | null) =>
+  Boolean(externalDraggingId) ||
+  Array.from(event.dataTransfer.types).includes(CHECKLIST_DND_MIME);
+
+export const TaskChecklist = ({
+  items,
+  onChange,
+  baseLevel = 2,
+  taskId,
+  externalDraggingId = null,
+  onChecklistDragStart,
+  onChecklistDragEnd,
+  onExternalDropOnItem,
+  onExternalDropOnRoot,
+}: TaskChecklistProps) => {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => collectParentIds(items));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -59,12 +90,16 @@ export const TaskChecklist = ({ items, onChange, baseLevel = 2 }: TaskChecklistP
     id: string;
     position: ChecklistDropPosition;
   } | null>(null);
+  const [rootDropActive, setRootDropActive] = useState(false);
   const editableRef = useRef<InlineEditableTextHandle | null>(null);
+
+  const activeDragId = draggingId ?? externalDraggingId;
 
   const onDragOverItem = (event: DragEvent, id: string) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!draggingId || draggingId === id) {
+    const dragId = draggingId ?? (isChecklistDrag(event, externalDraggingId) ? externalDraggingId : null);
+    if (!dragId || dragId === id) {
       return;
     }
     const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -73,19 +108,26 @@ export const TaskChecklist = ({ items, onChange, baseLevel = 2 }: TaskChecklistP
     const position: ChecklistDropPosition =
       ratio < 0.25 ? "before" : ratio > 0.75 ? "after" : "into";
     setDropTarget({ id, position });
+    setRootDropActive(false);
   };
 
   const onDropItem = (event: DragEvent, id: string) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!draggingId || !dropTarget || dropTarget.id !== id) {
+    if (!dropTarget || dropTarget.id !== id) {
       setDraggingId(null);
       setDropTarget(null);
+      setRootDropActive(false);
       return;
     }
-    onChange(moveChecklistItem(items, draggingId, id, dropTarget.position));
+    if (draggingId) {
+      onChange(moveChecklistItem(items, draggingId, id, dropTarget.position));
+    } else if (externalDraggingId && onExternalDropOnItem) {
+      onExternalDropOnItem(id, dropTarget.position);
+    }
     setDraggingId(null);
     setDropTarget(null);
+    setRootDropActive(false);
   };
 
   useEffect(() => {
@@ -166,16 +208,16 @@ export const TaskChecklist = ({ items, onChange, baseLevel = 2 }: TaskChecklistP
             className={cn(
               "group flex items-center gap-2 border-b border-border py-1 pr-3 transition-colors hover:bg-muted/50",
               !editing && "cursor-grab active:cursor-grabbing",
-              draggingId === item.id && "opacity-50",
+              activeDragId === item.id && "opacity-50",
               dropTarget?.id === item.id &&
-              dropTarget.position === "into" &&
-              "bg-primary/5 ring-2 ring-inset ring-primary/40",
+                dropTarget.position === "into" &&
+                "bg-primary/5 ring-2 ring-inset ring-primary/40",
               dropTarget?.id === item.id &&
-              dropTarget.position === "before" &&
-              "border-t-2 border-t-primary",
+                dropTarget.position === "before" &&
+                "border-t-2 border-t-primary",
               dropTarget?.id === item.id &&
-              dropTarget.position === "after" &&
-              "shadow-[inset_0_-2px_0_0_var(--color-primary)]",
+                dropTarget.position === "after" &&
+                "shadow-[inset_0_-2px_0_0_var(--color-primary)]",
             )}
             onDragStart={(event) => {
               if (editing) {
@@ -183,13 +225,22 @@ export const TaskChecklist = ({ items, onChange, baseLevel = 2 }: TaskChecklistP
                 return;
               }
               event.stopPropagation();
+              const payload: ChecklistDragPayload = {
+                type: "checklist-item",
+                sourceTaskId: taskId,
+                itemId: item.id,
+              };
+              event.dataTransfer.setData(CHECKLIST_DND_MIME, JSON.stringify(payload));
               event.dataTransfer.setData("text/plain", item.id);
               event.dataTransfer.effectAllowed = "move";
               setDraggingId(item.id);
+              onChecklistDragStart?.(item.id);
             }}
             onDragEnd={() => {
               setDraggingId(null);
               setDropTarget(null);
+              setRootDropActive(false);
+              onChecklistDragEnd?.();
             }}
             onDragOver={(event) => onDragOverItem(event, item.id)}
             onDrop={(event) => onDropItem(event, item.id)}
@@ -299,12 +350,76 @@ export const TaskChecklist = ({ items, onChange, baseLevel = 2 }: TaskChecklistP
     });
 
   return (
-    <div onMouseDown={(event) => event.stopPropagation()}>
+    <div
+      onMouseDown={(event) => event.stopPropagation()}
+      className={cn(rootDropActive && "bg-primary/5 ring-2 ring-inset ring-primary/40")}
+      onDragOver={(event) => {
+        if (!isChecklistDrag(event, externalDraggingId)) {
+          return;
+        }
+        // Only highlight root when not over a specific item drop target
+        if (dropTarget) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        setRootDropActive(true);
+      }}
+      onDragLeave={() => setRootDropActive(false)}
+      onDrop={(event) => {
+        if (!isChecklistDrag(event, externalDraggingId)) {
+          return;
+        }
+        if (dropTarget) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        if (externalDraggingId && onExternalDropOnRoot) {
+          onExternalDropOnRoot();
+        } else if (draggingId) {
+          const lastRoot = items[items.length - 1];
+          if (lastRoot && lastRoot.id !== draggingId) {
+            onChange(moveChecklistItem(items, draggingId, lastRoot.id, "after"));
+          }
+        }
+        setDraggingId(null);
+        setDropTarget(null);
+        setRootDropActive(false);
+      }}
+    >
       {items.length > 0 ? renderItems(items, 0) : null}
       <button
         type="button"
         className="flex w-full items-center border-b border-border py-1 pr-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/40"
         onClick={handleAddRoot}
+        onDragOver={(event) => {
+          if (!isChecklistDrag(event, externalDraggingId)) {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          setDropTarget(null);
+          setRootDropActive(true);
+        }}
+        onDrop={(event) => {
+          if (!isChecklistDrag(event, externalDraggingId)) {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          if (externalDraggingId && onExternalDropOnRoot) {
+            onExternalDropOnRoot();
+          } else if (draggingId) {
+            const lastRoot = items[items.length - 1];
+            if (lastRoot && lastRoot.id !== draggingId) {
+              onChange(moveChecklistItem(items, draggingId, lastRoot.id, "after"));
+            }
+          }
+          setDraggingId(null);
+          setDropTarget(null);
+          setRootDropActive(false);
+        }}
       >
         <span
           className="flex min-w-0 flex-1 items-center gap-2"

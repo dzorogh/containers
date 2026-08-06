@@ -3,8 +3,10 @@ import type { ChecklistItem } from "@/components/home/tasks-today-demo-data";
 import {
   addChecklistItem,
   countChecklist,
+  extractChecklistSubtree,
   indentChecklistItem,
   insertChecklistSiblingAfter,
+  insertChecklistSubtree,
   moveChecklistItem,
   outdentChecklistItem,
   removeChecklistItem,
@@ -98,6 +100,51 @@ describe("outdentChecklistItem", () => {
   });
 });
 
+describe("extractChecklistSubtree", () => {
+  it("removes node with children intact", () => {
+    const { next, node } = extractChecklistSubtree(sample(), "a");
+    expect(node?.id).toBe("a");
+    expect(node?.children.map((c) => c.id)).toEqual(["a1", "a2"]);
+    expect(next.map((c) => c.id)).toEqual(["b"]);
+  });
+
+  it("returns null node when missing", () => {
+    const { next, node } = extractChecklistSubtree(sample(), "missing");
+    expect(node).toBeNull();
+    expect(next).toEqual(sample());
+  });
+});
+
+describe("insertChecklistSubtree", () => {
+  it("appends at root when targetId is null", () => {
+    const node = { id: "x", title: "X", done: false, children: [] };
+    const next = insertChecklistSubtree(sample(), node, null, "into");
+    expect(next.map((c) => c.id)).toEqual(["a", "b", "x"]);
+  });
+
+  it("inserts before / after / into", () => {
+    const node = { id: "x", title: "X", done: false, children: [] };
+    expect(insertChecklistSubtree(sample(), node, "b", "before").map((c) => c.id)).toEqual([
+      "a",
+      "x",
+      "b",
+    ]);
+    expect(
+      insertChecklistSubtree(sample(), node, "a", "into")[0].children.map((c) => c.id),
+    ).toEqual(["a1", "a2", "x"]);
+    expect(insertChecklistSubtree(sample(), node, "a", "after").map((c) => c.id)).toEqual([
+      "a",
+      "x",
+      "b",
+    ]);
+  });
+
+  it("rejects insert when node id already exists in tree", () => {
+    const dup = sample()[0];
+    expect(insertChecklistSubtree(sample(), dup, "b", "before")).toEqual(sample());
+  });
+});
+
 describe("moveChecklistItem", () => {
   it("moves before a target", () => {
     const next = moveChecklistItem(sample(), "b", "a", "before");
@@ -113,5 +160,26 @@ describe("moveChecklistItem", () => {
   it("rejects move into a descendant", () => {
     const next = moveChecklistItem(sample(), "a", "a1", "into");
     expect(next).toEqual(sample());
+  });
+});
+
+describe("cross-tree move and promote mapping", () => {
+  it("moves a subtree into another tree", () => {
+    const source = sample();
+    const target: ChecklistItem[] = [{ id: "t", title: "T", done: false, children: [] }];
+    const { next: sourceNext, node } = extractChecklistSubtree(source, "a");
+    expect(node).not.toBeNull();
+    const targetNext = insertChecklistSubtree(target, node!, "t", "into");
+    expect(sourceNext.map((c) => c.id)).toEqual(["b"]);
+    expect(targetNext[0].children.map((c) => c.id)).toEqual(["a"]);
+    expect(targetNext[0].children[0].children.map((c) => c.id)).toEqual(["a1", "a2"]);
+  });
+
+  it("maps promoted item children to a new checklist", () => {
+    const { next: sourceNext, node } = extractChecklistSubtree(sample(), "a");
+    expect(node).not.toBeNull();
+    const newTaskChecklist = node!.children;
+    expect(sourceNext.map((c) => c.id)).toEqual(["b"]);
+    expect(newTaskChecklist.map((c) => c.id)).toEqual(["a1", "a2"]);
   });
 });

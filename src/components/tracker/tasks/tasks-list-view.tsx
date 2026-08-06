@@ -25,12 +25,22 @@ import {
 } from "@/components/home/tasks-today-demo-data";
 import { COLOR_CLASS_BY_TASK } from "@/components/tracker/tasks/calendar/calendar-color-map";
 import { formatDeadlineLabel } from "@/components/tracker/tasks/calendar/calendar-utils";
-import { countChecklist } from "@/components/tracker/tasks/checklist-tree";
+import {
+  countChecklist,
+  extractChecklistSubtree,
+  insertChecklistSubtree,
+  moveChecklistItem,
+  type ChecklistDropPosition,
+} from "@/components/tracker/tasks/checklist-tree";
 import {
   InlineEditableText,
   type InlineEditableTextHandle,
 } from "@/components/tracker/tasks/inline-editable-text";
-import { TaskChecklist, TREE_STEP_PX } from "@/components/tracker/tasks/task-checklist";
+import {
+  CHECKLIST_DND_MIME,
+  TaskChecklist,
+  TREE_STEP_PX,
+} from "@/components/tracker/tasks/task-checklist";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -121,6 +131,73 @@ type TaskDraft = {
 type HoverInsert = {
   pathKey: string;
   edgeIndex: number;
+};
+
+type ChecklistDragState = {
+  sourceTaskId: string;
+  itemId: string;
+};
+
+type ChecklistTaskDrop = {
+  taskId: string;
+  position: "before" | "after" | "into";
+};
+
+const moveChecklistAcrossTasks = (
+  prev: TodayTask[],
+  sourceTaskId: string,
+  itemId: string,
+  targetTaskId: string,
+  targetItemId: string | null,
+  position: ChecklistDropPosition,
+): TodayTask[] => {
+  const source = prev.find((task) => task.id === sourceTaskId);
+  const target = prev.find((task) => task.id === targetTaskId);
+  if (!source || !target) {
+    return prev;
+  }
+
+  if (sourceTaskId === targetTaskId) {
+    if (targetItemId === null) {
+      const { next, node } = extractChecklistSubtree(source.checklist ?? [], itemId);
+      if (!node) {
+        return prev;
+      }
+      return prev.map((task) =>
+        task.id === sourceTaskId
+          ? { ...task, checklist: insertChecklistSubtree(next, node, null, "into") }
+          : task,
+      );
+    }
+    return prev.map((task) =>
+      task.id === sourceTaskId
+        ? {
+            ...task,
+            checklist: moveChecklistItem(task.checklist ?? [], itemId, targetItemId, position),
+          }
+        : task,
+    );
+  }
+
+  const { next: sourceNext, node } = extractChecklistSubtree(source.checklist ?? [], itemId);
+  if (!node) {
+    return prev;
+  }
+  const targetNext = insertChecklistSubtree(
+    target.checklist ?? [],
+    node,
+    targetItemId,
+    targetItemId === null ? "into" : position,
+  );
+  return prev.map((task) => {
+    if (task.id === sourceTaskId) {
+      return { ...task, checklist: sourceNext };
+    }
+    if (task.id === targetTaskId) {
+      return { ...task, checklist: targetNext };
+    }
+    return task;
+  });
 };
 
 type TasksListViewProps = {
@@ -256,6 +333,8 @@ export const TasksListView = ({
   const [dragOverPathKey, setDragOverPathKey] = useState<string | null>(null);
   const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(() => new Set());
   const [hoverInsert, setHoverInsert] = useState<HoverInsert | null>(null);
+  const [draggingChecklist, setDraggingChecklist] = useState<ChecklistDragState | null>(null);
+  const [checklistTaskDrop, setChecklistTaskDrop] = useState<ChecklistTaskDrop | null>(null);
   const groupingLevelsKey = groupingLevels.join("|");
   const [collapseResetKey, setCollapseResetKey] = useState(groupingLevelsKey);
   if (collapseResetKey !== groupingLevelsKey) {
@@ -380,15 +459,72 @@ export const TasksListView = ({
 
   const pathDropHandlers = (path: GroupPathSegment[], pathKey: string) => ({
     onDragOver: (event: DragEvent) => {
+      if (draggingChecklist) {
+        return;
+      }
       event.preventDefault();
       event.dataTransfer.dropEffect = "move";
       setDragOverPathKey((current) => (current === pathKey ? current : pathKey));
     },
     onDrop: (event: DragEvent) => {
+      if (draggingChecklist) {
+        return;
+      }
       event.preventDefault();
       handleDropToPath(path);
     },
   });
+
+  const clearChecklistDrag = () => {
+    setDraggingChecklist(null);
+    setChecklistTaskDrop(null);
+  };
+
+  const expandTaskChecklist = (taskId: string) => {
+    setExpandedTaskIds((prev) => {
+      if (prev.has(taskId)) {
+        return prev;
+      }
+      const next = new Set(prev);
+      next.add(taskId);
+      return next;
+    });
+  };
+
+  const promoteChecklistItemToTask = (
+    prev: TodayTask[],
+    sourceTaskId: string,
+    itemId: string,
+    path: GroupPathSegment[],
+    pathKey: string,
+    insertIndex: number,
+  ): TodayTask[] => {
+    const source = prev.find((task) => task.id === sourceTaskId);
+    if (!source) {
+      return prev;
+    }
+    const { next: sourceNext, node } = extractChecklistSubtree(source.checklist ?? [], itemId);
+    if (!node) {
+      return prev;
+    }
+
+    const title = node.title.trim() || "Untitled";
+    const base = buildCreatedTask(title, spaceId, DEFAULT_DEMO_TASK_STAGE_ID);
+    const withPath =
+      pathKey === FLAT_PATH_KEY || path.length === 0
+        ? base
+        : applyGroupPathToTask(base, path, DEMO_REFERENCE_NOW);
+    const nextTask: TodayTask = {
+      ...withPath,
+      checklist: node.children,
+    };
+
+    const withSource = prev.map((task) =>
+      task.id === sourceTaskId ? { ...task, checklist: sourceNext } : task,
+    );
+    const siblings = siblingIdsForPath(pathKey, path);
+    return insertTaskAmongSiblings(withSource, siblings, nextTask, insertIndex);
+  };
 
   const updateTask = (taskId: string, patch: Partial<TodayTask>) => {
     onTasksChange((prev) => prev.map((task) => (task.id === taskId ? { ...task, ...patch } : task)));
@@ -578,11 +714,81 @@ export const TasksListView = ({
     const checklistExpanded = expandedTaskIds.has(task.id);
     const checklistProgress = countChecklist(task.checklist ?? []);
     const TaskExpandIcon = checklistExpanded ? ChevronDown : ChevronRight;
-    const dropHandlers = path.length > 0 ? pathDropHandlers(path, pathKey) : {};
+    const dropHandlers =
+      path.length > 0
+        ? pathDropHandlers(path, pathKey)
+        : {
+            onDragOver: (_event: DragEvent) => undefined,
+            onDrop: (_event: DragEvent) => undefined,
+          };
     const showTopInsert =
       hoverInsert?.pathKey === pathKey && hoverInsert.edgeIndex === taskIndex;
     const showBottomInsert =
       hoverInsert?.pathKey === pathKey && hoverInsert.edgeIndex === taskIndex + 1;
+    const checklistDropOnRow =
+      draggingChecklist && checklistTaskDrop?.taskId === task.id ? checklistTaskDrop : null;
+
+    const checklistRowDragHandlers = {
+      onDragOver: (event: DragEvent<HTMLTableRowElement>) => {
+        const isChecklist =
+          Boolean(draggingChecklist) ||
+          Array.from(event.dataTransfer.types).includes(CHECKLIST_DND_MIME);
+        if (!isChecklist) {
+          dropHandlers.onDragOver(event);
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = "move";
+        const bounds = event.currentTarget.getBoundingClientRect();
+        const ratio = (event.clientY - bounds.top) / bounds.height;
+        const position: ChecklistTaskDrop["position"] =
+          ratio < 0.25 ? "before" : ratio > 0.75 ? "after" : "into";
+        setChecklistTaskDrop((current) =>
+          current?.taskId === task.id && current.position === position
+            ? current
+            : { taskId: task.id, position },
+        );
+      },
+      onDrop: (event: DragEvent<HTMLTableRowElement>) => {
+        if (!draggingChecklist) {
+          dropHandlers.onDrop(event);
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const position = checklistTaskDrop?.taskId === task.id ? checklistTaskDrop.position : "into";
+        if (position === "into") {
+          onTasksChange((prev) =>
+            moveChecklistAcrossTasks(
+              prev,
+              draggingChecklist.sourceTaskId,
+              draggingChecklist.itemId,
+              task.id,
+              null,
+              "into",
+            ),
+          );
+          expandTaskChecklist(task.id);
+        } else {
+          const insertIndex = position === "before" ? taskIndex : taskIndex + 1;
+          onTasksChange((prev) =>
+            promoteChecklistItemToTask(
+              prev,
+              draggingChecklist.sourceTaskId,
+              draggingChecklist.itemId,
+              path,
+              pathKey,
+              insertIndex,
+            ),
+          );
+        }
+        clearChecklistDrag();
+      },
+      onDragLeave: () => {
+        setChecklistTaskDrop((current) => (current?.taskId === task.id ? null : current));
+      },
+    };
 
     return (
       <Fragment key={task.id}>
@@ -592,6 +798,10 @@ export const TasksListView = ({
               <TableRow
                 draggable
                 onDragStart={(event) => {
+                  if (draggingChecklist) {
+                    event.preventDefault();
+                    return;
+                  }
                   event.dataTransfer.setData("text/plain", task.id);
                   event.dataTransfer.effectAllowed = "move";
                   setDraggedTaskId(task.id);
@@ -613,8 +823,17 @@ export const TasksListView = ({
                     current?.pathKey === pathKey ? null : current,
                   );
                 }}
-                className={cn("relative", draggedTaskId === task.id && "opacity-50")}
+                className={cn(
+                  "relative",
+                  draggedTaskId === task.id && "opacity-50",
+                  checklistDropOnRow?.position === "into" &&
+                    "bg-primary/5 ring-2 ring-inset ring-primary/40",
+                  checklistDropOnRow?.position === "before" && "border-t-2 border-t-primary",
+                  checklistDropOnRow?.position === "after" &&
+                    "shadow-[inset_0_-2px_0_0_var(--color-primary)]",
+                )}
                 {...dropHandlers}
+                {...checklistRowDragHandlers}
               />
             }
           >
@@ -877,9 +1096,53 @@ export const TasksListView = ({
           >
             <TableCell colSpan={5} className="p-0">
               <TaskChecklist
+                taskId={task.id}
                 items={task.checklist ?? []}
                 baseLevel={depth + 2}
+                externalDraggingId={
+                  draggingChecklist && draggingChecklist.sourceTaskId !== task.id
+                    ? draggingChecklist.itemId
+                    : null
+                }
+                onChecklistDragStart={(itemId) =>
+                  setDraggingChecklist({ sourceTaskId: task.id, itemId })
+                }
+                onChecklistDragEnd={clearChecklistDrag}
                 onChange={(checklist) => updateTask(task.id, { checklist })}
+                onExternalDropOnItem={(itemId, position) => {
+                  if (!draggingChecklist) {
+                    return;
+                  }
+                  onTasksChange((prev) =>
+                    moveChecklistAcrossTasks(
+                      prev,
+                      draggingChecklist.sourceTaskId,
+                      draggingChecklist.itemId,
+                      task.id,
+                      itemId,
+                      position,
+                    ),
+                  );
+                  expandTaskChecklist(task.id);
+                  clearChecklistDrag();
+                }}
+                onExternalDropOnRoot={() => {
+                  if (!draggingChecklist) {
+                    return;
+                  }
+                  onTasksChange((prev) =>
+                    moveChecklistAcrossTasks(
+                      prev,
+                      draggingChecklist.sourceTaskId,
+                      draggingChecklist.itemId,
+                      task.id,
+                      null,
+                      "into",
+                    ),
+                  );
+                  expandTaskChecklist(task.id);
+                  clearChecklistDrag();
+                }}
               />
             </TableCell>
           </TableRow>

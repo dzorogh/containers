@@ -197,6 +197,32 @@ const insertAt = (
   return found ? mapped : null;
 };
 
+export const extractChecklistSubtree = (
+  items: ChecklistItem[],
+  id: string,
+): { next: ChecklistItem[]; node: ChecklistItem | null } => {
+  const { tree, extracted } = extractItem(items, id);
+  return { next: tree, node: extracted };
+};
+
+export const insertChecklistSubtree = (
+  items: ChecklistItem[],
+  node: ChecklistItem,
+  targetId: string | null,
+  position: ChecklistDropPosition,
+): ChecklistItem[] => {
+  if (targetId === null) {
+    return [...items, node];
+  }
+  if (findChecklistItem(items, node.id)) {
+    return items;
+  }
+  if (isDescendantOrSelf(items, node.id, targetId)) {
+    return items;
+  }
+  return insertAt(items, targetId, position, node) ?? items;
+};
+
 export const moveChecklistItem = (
   items: ChecklistItem[],
   id: string,

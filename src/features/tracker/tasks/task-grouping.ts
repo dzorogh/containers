@@ -161,8 +161,11 @@ export const resolveRelativeDeadlineBucket = (
   return relativeBucket("later");
 };
 
+const isDemoTaskStageId = (value: string): value is DemoTaskStageId =>
+  DEMO_TASK_STAGES.some((stage) => stage.id === value);
+
 const resolveStageId = (task: TodayTaskLike): DemoTaskStageId =>
-  task.stageId === "questions" ? "questions" : DEFAULT_DEMO_TASK_STAGE_ID;
+  isDemoTaskStageId(task.stageId) ? task.stageId : DEFAULT_DEMO_TASK_STAGE_ID;
 
 export const resolveBucket = (
   task: TodayTaskLike,
@@ -171,7 +174,9 @@ export const resolveBucket = (
 ): BucketRef => {
   if (groupBy === "stage") {
     const stageId = resolveStageId(task);
-    const stage = DEMO_TASK_STAGES.find((item) => item.id === stageId) ?? DEMO_TASK_STAGES[1];
+    const stage =
+      DEMO_TASK_STAGES.find((item) => item.id === stageId) ??
+      DEMO_TASK_STAGES.find((item) => item.id === DEFAULT_DEMO_TASK_STAGE_ID)!;
     return { key: stage.id, label: stage.name };
   }
 
@@ -395,7 +400,7 @@ export const applyGroupPathToTask = <T extends TodayTask>(
     if (segment.groupBy === "stage") {
       next = {
         ...next,
-        stageId: segment.key === "questions" ? "questions" : DEFAULT_DEMO_TASK_STAGE_ID,
+        stageId: isDemoTaskStageId(segment.key) ? segment.key : DEFAULT_DEMO_TASK_STAGE_ID,
       };
     } else if (segment.groupBy === "assignee") {
       if (segment.key === "unassigned") {

@@ -3,7 +3,7 @@ export type TaskColor = "red" | "orange" | "blue" | "violet" | "emerald" | "pink
 
 export type TaskDateProperty = "deadline" | "createdAt" | "customDateField";
 
-export type DemoTaskStageId = "questions" | "tasks";
+export type DemoTaskStageId = "questions" | "control" | "tasks";
 
 export type DemoTaskStage = {
   id: DemoTaskStageId;
@@ -12,8 +12,9 @@ export type DemoTaskStage = {
 };
 
 export const DEMO_TASK_STAGES: DemoTaskStage[] = [
-  { id: "questions", name: "Questions", order: 1 },
-  { id: "tasks", name: "Tasks", order: 2 },
+  { id: "control", name: "Control", order: 1 },
+  { id: "questions", name: "Questions", order: 2 },
+  { id: "tasks", name: "Tasks", order: 3 },
 ];
 
 export const DEFAULT_DEMO_TASK_STAGE_ID: DemoTaskStageId = "tasks";
@@ -425,6 +426,23 @@ const DEMO_QUESTIONS: TodayTask[] = [
 /** Полный демо-список для страницы «Все задачи» (включает задачи на сегодня). */
 export const ALL_TASKS: TodayTask[] = [
   ...DEMO_QUESTIONS,
+  createTask({
+    id: "task-daily-control",
+    stageId: "control",
+    title: "IT · Operations",
+    projectName: "IT · Operations",
+    priority: "medium",
+    comments: 0,
+    color: "blue",
+    deadlineOffsetDays: 0,
+    deadlineHour: 9,
+    deadlineMinute: 0,
+    createdOffsetDays: -1,
+    createdHour: 9,
+    createdMinute: 0,
+    spaceId: "space-it",
+    assigneeId: "anna-petrova",
+  }),
   createTask({
     id: "task-7",
     stageId: "tasks",

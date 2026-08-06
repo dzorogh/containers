@@ -56,6 +56,10 @@ describe("resolveBucket stage/assignee", () => {
       key: "questions",
       label: "Questions",
     });
+    expect(resolveBucket(baseTask({ stageId: "control" }), "stage", DEMO_REFERENCE_NOW)).toEqual({
+      key: "control",
+      label: "Control",
+    });
     expect(resolveBucket(baseTask({ stageId: "tasks" }), "stage", DEMO_REFERENCE_NOW)).toEqual({
       key: "tasks",
       label: "Tasks",
@@ -127,11 +131,13 @@ describe("groupTasks", () => {
   it("groups one level and hides empty buckets", () => {
     const tasks = [
       asTask({ id: "q", stageId: "questions" }),
+      asTask({ id: "c", stageId: "control" }),
       asTask({ id: "t", stageId: "tasks" }),
     ];
     const tree = groupTasks(tasks, ["stage"], WED);
-    expect(tree.map((n) => n.key)).toEqual(["questions", "tasks"]);
-    expect(tree[0].tasks.map((t) => t.id)).toEqual(["q"]);
+    expect(tree.map((n) => n.key)).toEqual(["control", "questions", "tasks"]);
+    expect(tree[0].tasks.map((t) => t.id)).toEqual(["c"]);
+    expect(tree[1].tasks.map((t) => t.id)).toEqual(["q"]);
     expect(tree[0].children).toEqual([]);
   });
 
@@ -173,6 +179,16 @@ describe("applyGroupPathToTask", () => {
     );
     expect(next.stageId).toBe("tasks");
     expect(next.assigneeName).toBe("Anna Petrova");
+  });
+
+  it("applies control stage", () => {
+    const task = asTask({ id: "c", stageId: "tasks" });
+    const next = applyGroupPathToTask(
+      task,
+      [{ groupBy: "stage", key: "control", label: "Control" }],
+      WED,
+    );
+    expect(next.stageId).toBe("control");
   });
 
   it("applies relative today and no deadline", () => {
